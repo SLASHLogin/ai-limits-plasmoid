@@ -1,0 +1,20 @@
+{
+  "providers": {
+    "codex": {
+      "remaining": 12,
+      "limit": 100,
+      "resetAt": "2026-08-01T00:00:00Z",
+      "detail": "Primary window"
+    },
+    "claude": {
+      "remaining": 42,
+      "limit": 100,
+      "detail": "Five-hour window"
+    },
+    "copilot": {
+      "remaining": 180,
+      "limit": 300,
+      "detail": "Premium requests"
+    }
+  }
+}

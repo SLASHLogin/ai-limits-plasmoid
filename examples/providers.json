@@ -1,0 +1,7 @@
+{
+  "providers": {
+    "codex": { "command": ["/home/me/bin/codex-limit"] },
+    "claude": { "command": ["/home/me/bin/claude-limit"] },
+    "copilot": { "command": ["/home/me/bin/copilot-limit"] }
+  }
+}

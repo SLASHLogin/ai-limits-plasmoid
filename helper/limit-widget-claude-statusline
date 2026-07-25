@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""Persist Claude Code's documented status-line rate_limits for AI Limits.
+
+Claude Code pipes session JSON to its configured status-line command. This
+bridge stores only the two percentage windows and optionally delegates the same
+JSON to the user's existing status-line command.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+from datetime import datetime, timezone
+from typing import Any
+
+
+def config_path() -> Path:
+    home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    return home / "limit-widget" / "claude-limits.json"
+
+
+def epoch_iso(value: Any) -> str | None:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    try:
+        return datetime.fromtimestamp(value, timezone.utc).isoformat()
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def window(rate_limits: dict[str, Any], key: str, label: str) -> dict[str, Any] | None:
+    value = rate_limits.get(key)
+    if not isinstance(value, dict):
+        return None
+    used = value.get("used_percentage")
+    if not isinstance(used, (int, float)) or isinstance(used, bool) or not 0 <= used <= 100:
+        return None
+    return {
+        "id": key,
+        "label": label,
+        "remaining": max(0, 100 - used),
+        "limit": 100,
+        "used": used,
+        "usedPercentage": used,
+        "resetAt": epoch_iso(value.get("resets_at")),
+    }
+
+
+def persist(payload: dict[str, Any]) -> None:
+    rate_limits = payload.get("rate_limits")
+    if not isinstance(rate_limits, dict):
+        return
+    windows = [
+        item
+        for item in (
+            window(rate_limits, "five_hour", "5h"),
+            window(rate_limits, "seven_day", "7d"),
+        )
+        if item is not None
+    ]
+    if not windows:
+        return
+
+    path = config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "providers": {
+            "claude": {
+                "state": "ok",
+                "windows": windows,
+                "detail": "Claude Code subscription windows",
+                "fetchedAt": datetime.now(timezone.utc).isoformat(),
+            }
+        }
+    }
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(record, separators=(",", ":")), encoding="utf-8")
+    os.chmod(temporary, 0o600)
+    temporary.replace(path)
+
+
+def main() -> int:
+    delegate = None
+    if "--delegate" in sys.argv[1:]:
+        index = sys.argv.index("--delegate")
+        delegate = sys.argv[index + 1 :]
+        if not delegate:
+            print("--delegate requires a command", file=sys.stderr)
+            return 2
+
+    raw = sys.stdin.read()
+    try:
+        payload = json.loads(raw)
+        if isinstance(payload, dict):
+            persist(payload)
+    except (ValueError, TypeError, OSError):
+        pass
+
+    if delegate:
+        completed = subprocess.run(delegate, input=raw, text=True, check=False)
+        return completed.returncode
+
+    # Useful as a standalone status-line command too.
+    try:
+        rate_limits = payload.get("rate_limits", {})
+        values = []
+        for key, label in (("five_hour", "5h"), ("seven_day", "7d")):
+            item = window(rate_limits, key, label)
+            if item:
+                values.append(f"{label}:{item['remaining']:.0f}% left")
+        print(" · ".join(values) or "Claude limits unavailable")
+    except (UnboundLocalError, AttributeError):
+        print("Claude limits unavailable")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
