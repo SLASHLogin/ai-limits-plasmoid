@@ -42,7 +42,10 @@ PlasmoidItem {
         return String(known) + " / " + String(providers.length) + " available";
     }
     readonly property string compactSummary: providers.map(function (provider) {
-        return provider.name + ": " + root.compactValue(provider);
+        var value = root.compactValue(provider);
+        // The panel itself has no room for a word, so spell the direction out
+        // wherever there is: an unlabelled "99%" reads as consumption.
+        return provider.name + ": " + (value === "—" ? value : value + " " + i18n("left"));
     }).join("  ·  ")
     readonly property int compactWidth: 16 + providers.reduce(function (width, provider) {
         return width + root.compactProviderWidth(provider);
@@ -69,13 +72,18 @@ PlasmoidItem {
         };
     }
 
-    function shortValue(provider) {
-        if (typeof provider.remaining !== "number") {
-            return "—";
+    function formatTimestamp(value) {
+        if (typeof value !== "string" || !value) {
+            return "";
         }
-        return Math.abs(provider.remaining - Math.round(provider.remaining)) < 0.01
-            ? String(Math.round(provider.remaining))
-            : provider.remaining.toFixed(1);
+        // The helper emits UTC with microsecond precision. ECMAScript's ISO
+        // parser only defines three fractional digits, so trim before handing
+        // it to Date; the result then renders in the local zone and locale.
+        var parsed = new Date(value.replace(/(\.\d{3})\d+/, "$1"));
+        if (isNaN(parsed.getTime())) {
+            return value;
+        }
+        return parsed.toLocaleString(Qt.locale(), Locale.ShortFormat);
     }
 
     function remainingPercent(item) {
@@ -371,8 +379,8 @@ PlasmoidItem {
                 QQC2.Label {
                     Layout.fillWidth: true
                     text: root.lastUpdated
-                        ? "Updated " + root.lastUpdated
-                        : "Waiting for usage data"
+                        ? i18n("Updated %1", root.formatTimestamp(root.lastUpdated))
+                        : i18n("Waiting for usage data")
                     color: Kirigami.Theme.disabledTextColor
                     font.pixelSize: 10
                     elide: Text.ElideRight

@@ -20,21 +20,41 @@ Item {
     readonly property real ratio: hasValue
         ? Math.max(0, Math.min(1, provider.remaining / provider.limit))
         : 0
+    // One fill ratio per window, so a multi-window provider gets a gauge per
+    // window instead of a single bar that only describes the first one.
+    readonly property var gauges: {
+        var list = [];
+        for (var index = 0; index < row.windows.length; index++) {
+            var item = row.windows[index];
+            if (typeof item.remaining === "number" && typeof item.limit === "number" && item.limit > 0) {
+                list.push(Math.max(0, Math.min(1, item.remaining / item.limit)));
+            }
+        }
+        if (list.length === 0 && row.hasValue) {
+            list.push(row.ratio);
+        }
+        return list;
+    }
 
-    implicitHeight: row.compact ? 24 : (row.windows.length > 1 ? 78 : 66)
+    implicitHeight: row.compact ? 24 : (54 + Math.max(1, row.gauges.length) * 7)
     Layout.fillWidth: true
     Layout.minimumHeight: implicitHeight
 
+    // Every value in the widget means allowance left, never consumption.
+    function formatValue(value) {
+        if (typeof value !== "number") {
+            return "—";
+        }
+        return Math.abs(value - Math.round(value)) < 0.05
+            ? String(Math.round(value))
+            : value.toFixed(1);
+    }
+
     function windowSummary() {
-        var values = row.windows.map(function (item) {
-            var value = row.provider.id === "claude" && typeof item.usedPercentage === "number"
-                ? item.usedPercentage
-                : item.remaining;
-            var displayed = typeof value === "number" ? String(Math.round(value)) : "—";
+        return row.windows.map(function (item) {
             var suffix = Number(item.limit) === 100 ? "%" : "";
-            return (item.label || qsTr("Window")) + " " + displayed + suffix;
+            return (item.label || qsTr("Window")) + " " + row.formatValue(item.remaining) + suffix;
         }).join("  ·  ");
-        return row.provider.id === "claude" ? qsTr("Used: ") + values : values;
     }
 
     function resetSummary() {
@@ -95,11 +115,15 @@ Item {
 
             QQC2.Label {
                 visible: row.hasValue
-                text: row.windows.length > 1
-                    ? row.windowSummary()
-                    : (row.hasValue
-                        ? String(row.provider.remaining) + " / " + String(row.provider.limit)
-                        : qsTr("—"))
+                text: {
+                    if (!row.hasValue) {
+                        return qsTr("—");
+                    }
+                    var body = row.windows.length > 1
+                        ? row.windowSummary()
+                        : row.formatValue(row.provider.remaining) + " / " + row.formatValue(row.provider.limit);
+                    return body + " " + i18n("left");
+                }
                 font.bold: true
                 font.pixelSize: row.windows.length > 1 ? 11 : (row.compact ? 11 : 13)
                 horizontalAlignment: Text.AlignRight
@@ -107,20 +131,37 @@ Item {
             }
         }
 
-        Rectangle {
-            visible: !row.compact && row.hasValue && row.windows.length <= 1
+        ColumnLayout {
+            visible: !row.compact && row.gauges.length > 0
             Layout.fillWidth: true
-            Layout.preferredHeight: 3
-            radius: 2
-            color: Kirigami.Theme.textColor
-            opacity: 0.14
+            spacing: 3
 
-            Rectangle {
-                width: parent.width * row.ratio
-                height: parent.height
-                radius: parent.radius
-                color: Kirigami.Theme.textColor
-                opacity: 0.82
+            Repeater {
+                model: row.gauges
+
+                delegate: Rectangle {
+                    id: gauge
+                    required property real modelData
+
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 4
+                    radius: 2
+                    // Alpha lives in the colours, not in `opacity`: Qt folds a
+                    // parent's opacity into its children, which would dim the
+                    // fill by the track's factor and flatten the two together.
+                    // The empty part is the consumed share, so it stays legible.
+                    color: Qt.rgba(Kirigami.Theme.textColor.r,
+                                   Kirigami.Theme.textColor.g,
+                                   Kirigami.Theme.textColor.b,
+                                   0.3)
+
+                    Rectangle {
+                        width: gauge.width * gauge.modelData
+                        height: gauge.height
+                        radius: gauge.radius
+                        color: Kirigami.Theme.textColor
+                    }
+                }
             }
         }
 

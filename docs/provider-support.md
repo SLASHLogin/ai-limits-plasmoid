@@ -8,7 +8,7 @@ five-hour window plus a seven-day window where available.
 | Provider | Automatic source | Values shown | Caveat |
 | --- | --- | --- | --- |
 | Codex / ChatGPT | `~/.codex/auth.json` / `$CODEX_HOME`, then `GET https://chatgpt.com/backend-api/wham/usage` | 5h, 7d, and Codex Spark windows when returned | This is a Codex client endpoint, not a stable public third-party API. |
-| Claude Code | `rate_limits.five_hour` and `rate_limits.seven_day` from the documented status-line JSON, persisted by `limit-widget-claude-statusline` | Compact view: 5h/7d percentage remaining. Expanded view: native percentage used, explicitly labeled, plus reset times | The cache updates when Claude Code runs its status line. |
+| Claude Code | `rate_limits.five_hour` and `rate_limits.seven_day` from the documented status-line JSON, persisted by `limit-widget-claude-statusline` | 5h and 7d percentage remaining, plus reset times | The cache updates when Claude Code runs its status line. |
 | GitHub Copilot | `gh api copilot_internal/user`, using GitHub CLI's credential store | Premium-interaction remaining / entitlement and monthly reset | `copilot_internal/user` is used by current clients but is not documented as a public REST endpoint. |
 
 Official usage pages remain available from each popup row:
@@ -22,10 +22,11 @@ Official usage pages remain available from each popup row:
 Claude Code's status-line documentation defines
 `rate_limits.*.used_percentage` as the percentage of the five-hour or seven-day
 limit **consumed**, from 0 to 100, and `resets_at` as the Unix reset timestamp:
-<https://code.claude.com/docs/en/statusline>. The compact panel converts this to
+<https://code.claude.com/docs/en/statusline>. The widget converts this to
 remaining percentage (`100 - used_percentage`) so it has the same direction as
-Codex and Copilot. The expanded Claude row keeps the native used percentage and
-labels it `Used`.
+Codex and Copilot. Both the panel and the popup show remaining, and the popup
+labels it `left`; no view shows the native used percentage, because two
+directions in one widget invite reading `99%` as nearly exhausted.
 
 The easiest setup is:
 
