@@ -158,6 +158,13 @@ def normalize_window(raw: Any, default_id: str, default_label: str) -> dict[str,
     if not isinstance(label, str) or not label.strip():
         label = default_label
 
+    # The applet renders a percent window as "12%" and a counted one as
+    # "12 / 300", so the distinction is carried in the payload instead of
+    # being guessed from a limit that happens to equal 100.
+    unit = raw.get("unit")
+    if unit not in {"percent", "count"}:
+        unit = "percent" if percentage is not None or limit == 100 else "count"
+
     return {
         "id": str(raw.get("id", default_id)),
         "label": label,
@@ -165,6 +172,7 @@ def normalize_window(raw: Any, default_id: str, default_label: str) -> dict[str,
         "limit": limit,
         "used": used,
         "usedPercentage": percentage,
+        "unit": unit,
         "resetAt": reset_at,
     }
 
@@ -225,6 +233,8 @@ def normalize(raw: Any, spec: dict[str, Any]) -> dict[str, Any]:
         "remaining": primary["remaining"] if primary else None,
         "limit": primary["limit"] if primary else None,
         "used": primary["used"] if primary else None,
+        "usedPercentage": primary["usedPercentage"] if primary else None,
+        "unit": primary["unit"] if primary else None,
         "resetAt": primary["resetAt"] if primary else None,
         "windows": windows,
         "detail": detail,
@@ -447,6 +457,7 @@ def copilot_source() -> dict[str, Any]:
         "windows": [{
             "id": "premium-interactions",
             "label": "Premium",
+            "unit": "count",
             "remaining": remaining,
             "limit": limit,
             "resetAt": reset_at,

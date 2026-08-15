@@ -78,3 +78,8 @@ For a single window, `remaining` and `limit` at the top level are also
 accepted. If valid `used` and `limit` are supplied instead, the helper computes
 `limit - used`. Any malformed, missing, negative, or non-positive quota remains
 unknown and is rendered as `—`.
+
+Each window also carries a `unit`: `percent` renders as `72%`, `count` as
+`72 / 300`. A window given as `usedPercentage`, or one whose `limit` is 100, is
+treated as a percentage; anything else counts. Set `"unit": "count"` explicitly
+for a counted quota that happens to have a limit of exactly 100.

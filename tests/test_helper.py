@@ -88,6 +88,22 @@ class HelperTest(unittest.TestCase):
         self.assertEqual([w["label"] for w in claude["windows"]], ["5h", "7d"])
         self.assertEqual(claude["remaining"], 72)
 
+    def test_window_unit_separates_percentages_from_counts(self):
+        payload = self.run_helper({
+            "limits.json": {
+                "providers": {
+                    "codex": {"used_percentage": 100, "detail": "percent window"},
+                    "claude": {"remaining": 72, "limit": 100},
+                    "copilot": {"unit": "count", "remaining": 40, "limit": 100},
+                }
+            }
+        })
+        codex, claude, copilot = payload["providers"]
+        self.assertEqual(codex["unit"], "percent")
+        self.assertEqual(codex["remaining"], 0)
+        self.assertEqual(claude["unit"], "percent")
+        self.assertEqual(copilot["unit"], "count")
+
     def test_failed_command_does_not_fall_back_to_old_number(self):
         payload = self.run_helper({
             "limits.json": {"codex": {"remaining": 1, "limit": 2}},

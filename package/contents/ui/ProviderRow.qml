@@ -50,10 +50,27 @@ Item {
             : value.toFixed(1);
     }
 
+    // Codex and Claude report a share of the allowance, so their windows read
+    // as "12%"; a counted quota such as Copilot's keeps "12 / 300".
+    function isPercentWindow(item) {
+        if (!item) {
+            return false;
+        }
+        if (item.unit === "percent" || item.unit === "count") {
+            return item.unit === "percent";
+        }
+        return typeof item.usedPercentage === "number" || Number(item.limit) === 100;
+    }
+
+    function windowValue(item) {
+        return row.isPercentWindow(item)
+            ? row.formatValue(item.remaining) + "%"
+            : row.formatValue(item.remaining) + " / " + row.formatValue(item.limit);
+    }
+
     function windowSummary() {
         return row.windows.map(function (item) {
-            var suffix = Number(item.limit) === 100 ? "%" : "";
-            return (item.label || qsTr("Window")) + " " + row.formatValue(item.remaining) + suffix;
+            return (item.label || qsTr("Window")) + " " + row.windowValue(item);
         }).join("  ·  ");
     }
 
@@ -121,7 +138,7 @@ Item {
                     }
                     var body = row.windows.length > 1
                         ? row.windowSummary()
-                        : row.formatValue(row.provider.remaining) + " / " + row.formatValue(row.provider.limit);
+                        : row.windowValue(row.windows.length === 1 ? row.windows[0] : row.provider);
                     return body + " " + i18n("left");
                 }
                 font.bold: true
