@@ -1,0 +1,32 @@
+[
+  {
+    "provider": "codex",
+    "version": "0.144.1",
+    "source": "oauth",
+    "usage": {
+      "primary": { "usedPercent": 20, "windowMinutes": 300, "resetsAt": "2100-01-01T05:00:00Z" },
+      "secondary": null, "tertiary": null, "extraRateWindows": [],
+      "loginMethod": "plus"
+    }
+  },
+  {
+    "provider": "cursor",
+    "version": "1.2.3",
+    "source": "oauth",
+    "credits": { "remaining": 25.5 },
+    "usage": {
+      "primary": { "usedPercent": 40, "windowMinutes": 300, "resetsAt": "2100-01-01T05:00:00Z" },
+      "secondary": { "usedPercent": 10, "windowMinutes": 10080, "resetsAt": "2100-01-05T07:00:00Z" },
+      "tertiary": null,
+      "extraRateWindows": [
+        { "id": "fast-requests", "title": "Fast requests",
+          "window": { "usedPercent": 85, "windowMinutes": 43200, "resetsAt": "2100-02-01T00:00:00Z" } }
+      ],
+      "loginMethod": "pro"
+    }
+  },
+  {
+    "provider": "gemini",
+    "usage": { "primary": null, "secondary": null, "tertiary": null, "extraRateWindows": [] }
+  }
+]

@@ -744,6 +744,152 @@ def auto_source(provider_id: str) -> dict[str, Any] | None:
     return None
 
 
+# --- CodexBar interoperability ----------------------------------------------
+#
+# CodexBar (https://github.com/steipete/CodexBar, MIT) is a macOS menu-bar app
+# that also ships a Linux CLI covering far more providers than this widget
+# reads natively. When that CLI is on PATH, its providers are offered here too.
+#
+# It stays strictly optional. The three native collectors need nothing
+# installed, which is the whole point of shipping them inside the package, so
+# they keep their own rows and CodexBar only contributes providers they do not
+# already cover. A user who wants breadth installs the binary; a user who wants
+# a widget that just works does nothing.
+
+CODEXBAR_TIMEOUT_SECONDS = 20
+# windowMinutes -> the label this widget uses for a window of that length.
+CODEXBAR_WINDOW_LABELS = ((300, "5h"), (10080, "7d"), (43200, "30d"))
+
+
+def codexbar_label(window_minutes: Any, fallback: str) -> str:
+    minutes = finite_number(window_minutes)
+    if minutes is None:
+        return fallback
+    for known, label in CODEXBAR_WINDOW_LABELS:
+        if abs(minutes - known) < 1:
+            return label
+    if minutes < 60:
+        return f"{int(minutes)}m"
+    if minutes < 1440:
+        return f"{int(minutes / 60)}h"
+    return f"{int(minutes / 1440)}d"
+
+
+def codexbar_window(raw: Any, window_id: str, fallback_label: str) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    return normalize_window({
+        "id": window_id,
+        "label": codexbar_label(raw.get("windowMinutes"), fallback_label),
+        "unit": "percent",
+        "used_percentage": raw.get("usedPercent"),
+        "resetAt": raw.get("resetsAt") if isinstance(raw.get("resetsAt"), str) else None,
+    }, window_id, fallback_label)
+
+
+def codexbar_record(entry: Any) -> dict[str, Any] | None:
+    """Turn one CodexBar provider entry into this widget's shape."""
+    if not isinstance(entry, dict):
+        return None
+    usage = entry.get("usage")
+    if not isinstance(usage, dict):
+        return None
+
+    windows: list[dict[str, Any]] = []
+    for slot, fallback in (("primary", "Session"), ("secondary", "Weekly"), ("tertiary", "Monthly")):
+        window = codexbar_window(usage.get(slot), slot, fallback)
+        if window:
+            windows.append(window)
+
+    # Per-model and feature caps ride alongside the standard slots. They are
+    # kept, and titled, so a tighter cap cannot hide behind a looser one.
+    extra = usage.get("extraRateWindows")
+    if isinstance(extra, list):
+        for item in extra:
+            if not isinstance(item, dict):
+                continue
+            title = item.get("title")
+            window = codexbar_window(
+                item.get("window"),
+                str(item.get("id") or "extra"),
+                title if isinstance(title, str) and title.strip() else "Window",
+            )
+            if window:
+                if isinstance(title, str) and title.strip():
+                    window["label"] = title.strip()
+                windows.append(window)
+
+    if not windows:
+        return None
+
+    detail_parts = []
+    login = usage.get("loginMethod")
+    if isinstance(login, str) and login:
+        detail_parts.append(login.capitalize())
+    credits = entry.get("credits")
+    if isinstance(credits, dict):
+        remaining = finite_number(credits.get("remaining"))
+        if remaining is not None:
+            detail_parts.append(f"{remaining:g} credits")
+    return {
+        "state": "ok",
+        "windows": windows,
+        "detail": " · ".join(detail_parts) or "via CodexBar",
+    }
+
+
+def codexbar_entries() -> list[dict[str, Any]]:
+    """Run the CodexBar CLI once and return its provider entries."""
+    if not shutil_which("codexbar"):
+        return []
+    try:
+        completed = subprocess.run(
+            ["codexbar", "usage", "--format", "json", "--no-color"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=CODEXBAR_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if completed.returncode != 0:
+        return []
+    try:
+        payload = json.loads(completed.stdout)
+    except (ValueError, TypeError):
+        return []
+    if isinstance(payload, dict):
+        payload = payload.get("providers", [payload])
+    return [item for item in payload if isinstance(item, dict)] if isinstance(payload, list) else []
+
+
+def codexbar_extra_providers(covered: set[str]) -> list[dict[str, Any]]:
+    """Rows for CodexBar providers this widget has no native collector for."""
+    rows: list[dict[str, Any]] = []
+    for entry in codexbar_entries():
+        provider_id = entry.get("provider")
+        if not isinstance(provider_id, str) or provider_id in covered:
+            continue
+        record = codexbar_record(entry)
+        if record is None:
+            continue
+        name = provider_id.replace("-", " ").replace("_", " ").title()
+        spec = {
+            "id": f"codexbar:{provider_id}",
+            "name": name,
+            "shortName": name[:1].upper(),
+            # No vendor artwork is bundled for these, so they use the neutral
+            # glyph rather than a mark this project has no licence for.
+            "symbol": "codex-generic-symbolic.svg",
+            "url": "",
+            "defaultDetail": "Reported by CodexBar",
+        }
+        rows.append(normalize(record, spec))
+    return rows
+
+
 def snapshot() -> dict[str, Any]:
     directory = config_dir()
     preferences = load_json(directory / "providers.json")
@@ -773,6 +919,11 @@ def snapshot() -> dict[str, Any]:
         if isinstance(configured_provider.get("url"), str):
             normalized["url"] = configured_provider["url"]
         output.append(normalized)
+
+    # Opt out with {"codexbar": {"enabled": false}} in providers.json.
+    codexbar_preference = configured.get("codexbar", {})
+    if not (isinstance(codexbar_preference, dict) and codexbar_preference.get("enabled") is False):
+        output.extend(codexbar_extra_providers({spec["id"] for spec in PROVIDERS}))
 
     return {
         "version": VERSION,

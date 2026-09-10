@@ -161,6 +161,61 @@ class VendorParsingTest(unittest.TestCase):
         self.assertIn("unlimited", record["detail"])
 
 
+class CodexBarInteropTest(unittest.TestCase):
+    """CodexBar is optional: absent it changes nothing, present it adds rows."""
+
+    def setUp(self):
+        self.helper = load_helper()
+
+    def stub_cli(self, payload, returncode=0):
+        h = self.helper
+        h.shutil_which = lambda name: "/usr/bin/codexbar" if name == "codexbar" else None
+        h.subprocess.run = lambda *a, **k: subprocess.CompletedProcess(
+            a[0] if a else [], returncode, json.dumps(payload), "")
+
+    def test_absent_cli_adds_nothing(self):
+        h = self.helper
+        h.shutil_which = lambda name: None
+        self.assertEqual(h.codexbar_extra_providers(set()), [])
+
+    def test_only_providers_without_a_native_collector_are_added(self):
+        """The native three need no binary, so they must keep their own rows."""
+        self.stub_cli(fixture("codexbar-usage.json"))
+        rows = self.helper.codexbar_extra_providers({"codex", "claude", "copilot"})
+        ids = [r["id"] for r in rows]
+        self.assertNotIn("codexbar:codex", ids)
+        self.assertIn("codexbar:cursor", ids)
+
+    def test_window_minutes_become_this_widget_s_labels(self):
+        self.stub_cli(fixture("codexbar-usage.json"))
+        rows = self.helper.codexbar_extra_providers({"codex", "claude", "copilot"})
+        cursor = next(r for r in rows if r["id"] == "codexbar:cursor")
+        labels = {w["label"]: w for w in cursor["windows"]}
+        self.assertIn("5h", labels)
+        self.assertIn("7d", labels)
+        # 40% used must be reported as 60 remaining.
+        self.assertAlmostEqual(labels["5h"]["remaining"], 60.0)
+
+    def test_extra_rate_window_keeps_its_own_title(self):
+        """A tighter per-feature cap must not hide behind a looser window."""
+        self.stub_cli(fixture("codexbar-usage.json"))
+        rows = self.helper.codexbar_extra_providers({"codex", "claude", "copilot"})
+        cursor = next(r for r in rows if r["id"] == "codexbar:cursor")
+        labels = {w["label"]: w for w in cursor["windows"]}
+        self.assertIn("Fast requests", labels)
+        self.assertAlmostEqual(labels["Fast requests"]["remaining"], 15.0)
+
+    def test_provider_with_no_windows_is_skipped(self):
+        self.stub_cli(fixture("codexbar-usage.json"))
+        rows = self.helper.codexbar_extra_providers({"codex", "claude", "copilot"})
+        self.assertNotIn("codexbar:gemini", [r["id"] for r in rows])
+
+    def test_failing_cli_is_not_an_error_row(self):
+        """An unusable CodexBar must degrade to silence, not a broken row."""
+        self.stub_cli({}, returncode=1)
+        self.assertEqual(self.helper.codexbar_extra_providers(set()), [])
+
+
 class NoNetworkTest(unittest.TestCase):
     """The guard is only worth having if it actually refuses a connection."""
 

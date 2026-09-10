@@ -31,3 +31,10 @@ change.
 The marks these files depict are trademarks of their owners and are **not**
 covered by this project's GPL grant. See [`TRADEMARKS.md`](TRADEMARKS.md) for
 the full notice, made as an additional term under GPL-3.0 section 7(e).
+
+## Optional runtime dependency
+
+The widget can read providers from the [CodexBar](https://github.com/steipete/CodexBar)
+CLI when it is installed, by running `codexbar usage --format json`. CodexBar
+is MIT-licensed and is not bundled, redistributed, or linked here — it is an
+external program the user installs, and the widget works fully without it.

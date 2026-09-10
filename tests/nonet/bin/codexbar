@@ -1,0 +1,9 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2026 SLASHLogin
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# CodexBar is an optional external binary. Shadow it in tests and CI so the
+# suite never depends on whether a developer happens to have it installed, and
+# so it cannot reach a provider. Exiting non-zero is the "not usable" path.
+echo "codexbar is stubbed out in the test environment" >&2
+exit 1

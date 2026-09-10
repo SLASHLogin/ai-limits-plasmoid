@@ -132,6 +132,29 @@ their normalized result is sent to the widget. Keep credentials in the command
 or a system secret store; do not put them in Plasma configuration or JSON files
 that are world-readable. See `examples/` for copyable templates.
 
+### More providers through CodexBar (optional)
+
+The three collectors above are built in and need nothing installed. If you want
+breadth as well, install the [CodexBar](https://github.com/steipete/CodexBar)
+CLI (MIT) and this widget will pick up the providers it reports — Cursor,
+Gemini, Grok, OpenRouter, DeepSeek, Zed, AWS Bedrock and many more:
+
+```sh
+yay -S codexbar-cli          # Arch
+brew install steipete/tap/codexbar
+codexbar config enable --provider cursor
+```
+
+The widget runs `codexbar usage --format json` only if `codexbar` is on `PATH`.
+It contributes providers this widget has no native collector for; Codex,
+Claude, and Copilot keep their built-in ones, so nothing breaks if you remove
+the binary. Extra providers appear in the popup and are kept out of the panel,
+which would otherwise grow past the width of the screen. Turn it off with:
+
+```json
+{ "providers": { "codexbar": { "enabled": false } } }
+```
+
 Refresh is five minutes by default and can be changed in the widget settings
 from 1–60 minutes. Press **Refresh** in the popup for an immediate update.
 

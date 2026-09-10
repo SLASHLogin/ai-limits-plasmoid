@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.0
+
+- New: providers from the [CodexBar](https://github.com/steipete/CodexBar) CLI
+  (MIT) are picked up when `codexbar` is on `PATH` — Cursor, Gemini, Grok,
+  OpenRouter, DeepSeek, Zed, AWS Bedrock and more. It is entirely optional: the
+  three built-in collectors still need nothing installed, and they keep their
+  own rows. Disable with `{"codexbar": {"enabled": false}}` in `providers.json`.
+- CodexBar providers appear in the popup only. The panel grows with every row
+  it draws, so dozens of providers would push the rest of the panel off screen.
+- Fixed: a provider reporting three or more windows pushed its own name out of
+  the popup row, because the value label had no width limit and the name was
+  free to elide to nothing.
+- Added `docs/alternatives.md` surveying the other widgets in this space.
+
 ## 1.0.2
 
 - The Codex row shows OpenAI's mark again, shipped unmodified and used

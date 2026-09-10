@@ -39,6 +39,13 @@ PlasmoidItem {
     readonly property var displayedProviders: providers.filter(function (provider) {
         return root.showUnsupported || provider.state === "ok" || provider.state === "stale";
     })
+    // Providers discovered through the optional CodexBar CLI are shown in the
+    // popup but kept out of the panel. There can be dozens of them, and the
+    // panel representation grows with every row it draws, so including them
+    // would push the rest of the panel off a normal-width screen.
+    readonly property var panelProviders: providers.filter(function (provider) {
+        return String(provider.id || "").indexOf("codexbar:") !== 0;
+    })
     readonly property string statusLine: {
         var known = providers.filter(function (provider) {
             return typeof provider.remaining === "number" && typeof provider.limit === "number";
@@ -231,7 +238,7 @@ PlasmoidItem {
             spacing: 5
 
             Repeater {
-                model: root.providers
+                model: root.panelProviders
                 delegate: RowLayout {
                     id: horizontalProvider
                     required property var modelData
@@ -264,7 +271,7 @@ PlasmoidItem {
             spacing: 2
 
             Repeater {
-                model: root.providers
+                model: root.panelProviders
                 delegate: RowLayout {
                     id: verticalProvider
                     required property var modelData

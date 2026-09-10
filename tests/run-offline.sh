@@ -11,6 +11,7 @@
 #                     including the collector subprocesses the tests spawn;
 #   bin/gh            shadows the real gh, which is a Go binary and so is not
 #                     affected by the Python guard at all.
+#   bin/codexbar      same, for the optional CodexBar CLI.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,5 +44,11 @@ if ! command -v gh >/dev/null || gh api copilot_internal/user >/dev/null 2>&1; t
     exit 1
 fi
 echo "   gh stub armed: Copilot cannot be queried"
+
+if ! command -v codexbar >/dev/null || codexbar usage --format json >/dev/null 2>&1; then
+    echo "   CODEXBAR STUB NOT ARMED: a real codexbar is reachable" >&2
+    exit 1
+fi
+echo "   codexbar stub armed: no external CLI is consulted"
 
 exit $status

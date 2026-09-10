@@ -127,6 +127,10 @@ Item {
 
             QQC2.Label {
                 Layout.fillWidth: true
+                // Without a floor the value label, which has no width limit,
+                // takes the whole row when a provider reports three or more
+                // windows and elides the name away to nothing.
+                Layout.minimumWidth: Math.min(implicitWidth, 72)
                 text: row.provider.name || "AI provider"
                 font.bold: !row.compact
                 font.pixelSize: row.compact ? 11 : 13
@@ -147,6 +151,7 @@ Item {
                 font.bold: true
                 font.pixelSize: row.windows.length > 1 ? 11 : (row.compact ? 11 : 13)
                 horizontalAlignment: Text.AlignRight
+                elide: Text.ElideLeft
                 Accessible.name: row.hasValue ? text : qsTr("Limit unavailable")
             }
         }
