@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2
+
+- The Codex row shows OpenAI's mark again, shipped unmodified and used
+  nominatively. `codex-generic-symbolic.svg` is bundled alongside it as a
+  neutral drop-in for redistributions that would rather not carry a brand
+  asset; see `TRADEMARKS.md`.
+
 ## 1.0.1
 
 - Fixed: a Codex Spark weekly cap was labelled `7d`, the same as the combined
