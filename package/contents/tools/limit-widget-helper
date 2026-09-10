@@ -437,7 +437,15 @@ def codex_source() -> dict[str, Any]:
                 continue
             spark = entry["rate_limit"]
             for slot, fallback_label in (("primary_window", "Spark 5h"), ("secondary_window", "Spark 7d")):
-                window = codex_window(spark.get(slot), slot, fallback_label, {})
+                # codex_window labels a window from its duration, which would
+                # name this one "7d" — the same as the combined weekly window,
+                # leaving the popup with two rows a user cannot tell apart.
+                # Set the Spark label first so that setdefault keeps it.
+                raw_window = spark.get(slot)
+                if isinstance(raw_window, dict):
+                    raw_window = dict(raw_window)
+                    raw_window.setdefault("label", fallback_label)
+                window = codex_window(raw_window, slot, fallback_label, {})
                 if window:
                     window["id"] = "spark-" + window["id"]
                     windows.append(window)

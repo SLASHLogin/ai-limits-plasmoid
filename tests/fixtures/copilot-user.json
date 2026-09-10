@@ -1,0 +1,10 @@
+{
+  "quota_reset_date_utc": "2100-02-01T00:00:00.000Z",
+  "quota_snapshots": {
+    "premium_interactions": {
+      "unlimited": false,
+      "remaining": 217,
+      "entitlement": 300
+    }
+  }
+}

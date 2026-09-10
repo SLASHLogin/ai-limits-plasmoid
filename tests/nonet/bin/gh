@@ -1,0 +1,11 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2026 SLASHLogin
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# The collector reads Copilot usage by shelling out to `gh`, which is a Go
+# binary and therefore untouched by the Python socket guard in sitecustomize.
+# Put this directory first on PATH in tests and CI so that call cannot reach
+# GitHub. Exiting non-zero is what an unauthenticated gh does, so the collector
+# takes its normal "not signed in" path.
+echo "gh is stubbed out in the test environment" >&2
+exit 1

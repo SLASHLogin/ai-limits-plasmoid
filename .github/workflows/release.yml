@@ -1,0 +1,142 @@
+# SPDX-FileCopyrightText: 2026 SLASHLogin
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Release
+
+# Only a tag push publishes. Tags can be pushed by people with write access,
+# so a fork's pull request can never reach this workflow or its permissions.
+on:
+  push:
+    tags:
+      - "v*"
+
+# Read by default; the one job that needs to publish asks for write itself.
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Deliberately a separate job from the publish. The archive is validated
+  # before anything is created, so a tag that does not match metadata.json
+  # fails without leaving a half-made release behind.
+  verify:
+    name: Verify the tagged tree
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Run the suite with the network blocked
+        run: ./tests/run-offline.sh
+
+      - name: Tag must match the version in metadata.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          declared=$(python3 -c 'import json;print(json.load(open("package/metadata.json"))["KPlugin"]["Version"])')
+          if [ "$tag" != "$declared" ]; then
+            echo "::error::tag v$tag does not match metadata.json version $declared"
+            exit 1
+          fi
+          echo "tag and metadata agree on $declared"
+
+      - name: Licence must still be GPL-3.0-or-later
+        run: |
+          declared=$(python3 -c 'import json;print(json.load(open("package/metadata.json"))["KPlugin"]["License"])')
+          [ "$declared" = "GPL-3.0-or-later" ] || { echo "::error::licence is $declared"; exit 1; }
+
+      - name: Build the archive
+        run: ./tools/make-store-archive.sh
+
+      # A release is public and permanent. Check the bytes actually being
+      # published rather than the working tree they came from.
+      - name: Audit the archive that will be published
+        run: |
+          python3 - <<'PY'
+          import json, re, sys, zipfile
+          archive = zipfile.ZipFile(next(__import__("pathlib").Path("dist").glob("*.plasmoid")))
+          names = archive.namelist()
+
+          if "metadata.json" not in names:
+              sys.exit("::error::metadata.json must be at the archive root")
+          if not any(n == "contents/tools/limit-widget-helper" for n in names):
+              sys.exit("::error::the collector is missing from the archive")
+
+          secret = re.compile(
+              rb"sk-ant-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{32,}|gh[pousr]_[A-Za-z0-9]{36}"
+              rb"|github_pat_[A-Za-z0-9_]{22,}|-----BEGIN [A-Z ]*PRIVATE KEY"
+          )
+          home = re.compile(rb"/home/(?!me[^a-z0-9_-])[a-z][a-z0-9_-]*")
+          for name in names:
+              body = archive.read(name)
+              # Never print the match itself: release logs are public.
+              if secret.search(body):
+                  sys.exit(f"::error::{name} contains something shaped like a credential")
+              if home.search(body):
+                  sys.exit(f"::error::{name} contains a real home directory path")
+          print(f"archive clean: {len(names)} entries")
+          PY
+
+      - uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+        with:
+          name: release-archive
+          path: dist/*.plasmoid
+          if-no-files-found: error
+
+  publish:
+    name: Publish the GitHub release
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write  # the only place in this repository that can publish
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-archive
+          path: dist
+
+      # Publishes the archive the verify job audited, not a fresh build.
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! ./tools/changelog-section.py CHANGELOG.md "${GITHUB_REF_NAME#v}" > /tmp/notes.md; then
+            echo "::error::CHANGELOG.md has no section for ${GITHUB_REF_NAME#v}"
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" dist/*.plasmoid \
+            --title "AI Limits ${GITHUB_REF_NAME#v}" \
+            --notes-file /tmp/notes.md \
+            --verify-tag
+
+      # store.kde.org has no API for this. KDE's OCS v1 server exposes only
+      # read actions plus vote and comments — there is no content create or
+      # upload action — so the listing is updated by hand. This prints what to
+      # do rather than pretending the step is automated.
+      - name: KDE Store reminder
+        run: |
+          {
+            echo "### KDE Store upload still needs a person"
+            echo
+            echo "store.kde.org has no upload API, so this release is **not** on the Store yet."
+            echo
+            echo "1. Open <https://store.kde.org/> and sign in with KDE Identity."
+            echo "2. Find **AI Limits**, choose **Update**, not Add Product."
+            echo "3. Upload \`$(ls dist/*.plasmoid | xargs -n1 basename)\` from this release."
+            echo "4. Set the *file's* version to \`${GITHUB_REF_NAME#v}\` — Get New Widgets"
+            echo "   compares that field, not the product version, when offering updates."
+            echo
+            echo "Field values are in \`docs/kde-store.md\`."
+          } >> "$GITHUB_STEP_SUMMARY"

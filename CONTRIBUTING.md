@@ -7,22 +7,33 @@ Patches are welcome — bug fixes, new providers, panel layouts, translations.
 Nothing beyond Plasma 6 and Python 3 is required.
 
 ```sh
-python3 tests/test_helper.py                      # collector tests
+./tests/run-offline.sh                            # the whole suite, network blocked
 kpackagetool6 --type Plasma/Applet --install package
 plasmawindowed dev.slashlogin.ailimits            # run the applet standalone
 ```
 
-The test suite uses sanitized temporary configuration and never contacts a
-provider. Before sending a change, please also check it by hand in a real
-panel: horizontal and vertical, light and dark, and with a provider signed out.
+Use `run-offline.sh` rather than calling the suites directly. It blocks
+outbound sockets in every Python process — including the collector
+subprocesses the tests spawn — and shadows `gh`, which is a Go binary the
+Python guard cannot reach. It then fails if either guard is not armed. This is
+what stops a test quietly passing against your own live account and then
+behaving differently for everyone else.
+
+Vendor responses are parsed from recorded fixtures in `tests/fixtures/`, so
+`tests/test_vendor_parsing.py` covers the response handling that used to be
+reachable only with a real subscription. If you add a provider or change how a
+payload is read, add a fixture rather than a live request.
+
+Before sending a change, please also check it by hand in a real panel:
+horizontal and vertical, light and dark, and with a provider signed out.
 
 ## What CI checks
 
 Every pull request runs, with a read-only token and no access to repository
 secrets:
 
-- the collector tests, each run against a temporary empty home so CI holds no
-  credentials and never contacts OpenAI, Anthropic, or GitHub from your patch;
+- the collector tests via `run-offline.sh`, so CI holds no credentials and
+  provably cannot contact OpenAI, Anthropic, or GitHub from your patch;
 - `metadata.json` and `main.xml` validity, and that the declared licence is
   still GPL-3.0-or-later;
 - an SPDX header on every source file;

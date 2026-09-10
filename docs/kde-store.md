@@ -43,8 +43,16 @@ kpackagetool6 --type Plasma/Applet --install dist/ai-limits-1.0.0.plasmoid
 
 ## Uploading to KDE Store
 
-The GitHub release is published; the Store listing is created by hand at
-<https://store.kde.org/>. Sign in with a KDE Identity account, then **Add
+**This step cannot be automated.** KDE's OCS v1 API server exposes only read
+actions — `contentdata`, `contentdownload`, `contentcategories`, `comments`,
+`vote`, and person lookups. There is no content create, add, or upload action,
+which matches KDE's own note that KNewStuff implements OCS Content Create on
+the client but store.kde.org has no server-side support for it. Tagging a
+release therefore publishes to GitHub automatically and leaves a reminder in
+the run summary for this part.
+
+The GitHub release is published by `.github/workflows/release.yml` on any `v*`
+tag; the Store listing is created by hand at <https://store.kde.org/>. Sign in with a KDE Identity account, then **Add
 Product**:
 
 | Field | Value |

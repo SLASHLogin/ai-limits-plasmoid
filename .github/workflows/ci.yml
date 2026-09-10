@@ -40,14 +40,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      # The suite isolates itself: each case runs the collector against a
-      # temporary HOME, XDG_CONFIG_HOME and CODEX_HOME with no credentials in
-      # them, so a contributor's patch cannot generate provider traffic from
-      # CI. Do not force LIMIT_WIDGET_DISABLE_AUTO here — two cases exercise
-      # the Claude path deliberately and setting it globally makes them report
-      # "unsupported" instead of what they assert.
-      - name: Run collector tests
-        run: python3 tests/test_helper.py
+      # run-offline.sh blocks outbound sockets in every Python process and
+      # shadows gh, then fails if either guard is not actually armed. A patch
+      # that tries to reach a vendor cannot succeed here, and vendor responses
+      # are parsed from fixtures instead.
+      #
+      # Do not force LIMIT_WIDGET_DISABLE_AUTO for the whole job: two cases
+      # exercise the Claude path deliberately and would report "unsupported".
+      - name: Run collector tests with the network blocked
+        run: ./tests/run-offline.sh
 
       - name: Validate package metadata and configuration XML
         run: |
@@ -64,7 +65,8 @@ jobs:
             package/contents/tools/limit-widget-helper \
             helper/limit-widget-claude-statusline \
             helper/limit-widget-setup \
-            tests/test_helper.py
+            tests/test_helper.py \
+            tests/test_vendor_parsing.py
 
       - name: Build the Store archive
         run: ./tools/make-store-archive.sh

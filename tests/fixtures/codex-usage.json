@@ -1,0 +1,28 @@
+{
+  "plan_type": "plus",
+  "rate_limit": {
+    "primary_window": {
+      "used_percent": 42.5,
+      "limit_window_seconds": 18000,
+      "resets_at": 4102444800
+    },
+    "secondary_window": {
+      "used_percent": 12.0,
+      "limit_window_seconds": 604800,
+      "resets_at": 4102876800
+    }
+  },
+  "additional_rate_limits": [
+    {
+      "limit_name": "spark",
+      "rate_limit": {
+        "secondary_window": {
+          "used_percent": 80.0,
+          "limit_window_seconds": 604800,
+          "resets_at": 4102876800
+        }
+      }
+    }
+  ],
+  "rate_limit_reset_credits": { "available_count": 2 }
+}
