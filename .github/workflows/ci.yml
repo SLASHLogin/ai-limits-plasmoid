@@ -40,12 +40,13 @@ jobs:
         with:
           python-version: "3.12"
 
-      # LIMIT_WIDGET_DISABLE_AUTO keeps the collector off every provider
-      # endpoint. CI has no credentials to read and must not generate traffic
-      # to third parties from a contributor's patch.
+      # The suite isolates itself: each case runs the collector against a
+      # temporary HOME, XDG_CONFIG_HOME and CODEX_HOME with no credentials in
+      # them, so a contributor's patch cannot generate provider traffic from
+      # CI. Do not force LIMIT_WIDGET_DISABLE_AUTO here — two cases exercise
+      # the Claude path deliberately and setting it globally makes them report
+      # "unsupported" instead of what they assert.
       - name: Run collector tests
-        env:
-          LIMIT_WIDGET_DISABLE_AUTO: "1"
         run: python3 tests/test_helper.py
 
       - name: Validate package metadata and configuration XML

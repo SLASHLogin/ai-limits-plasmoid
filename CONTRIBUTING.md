@@ -21,8 +21,8 @@ panel: horizontal and vertical, light and dark, and with a provider signed out.
 Every pull request runs, with a read-only token and no access to repository
 secrets:
 
-- the collector tests, with provider collection disabled so CI never contacts
-  OpenAI, Anthropic, or GitHub from your patch;
+- the collector tests, each run against a temporary empty home so CI holds no
+  credentials and never contacts OpenAI, Anthropic, or GitHub from your patch;
 - `metadata.json` and `main.xml` validity, and that the declared licence is
   still GPL-3.0-or-later;
 - an SPDX header on every source file;
