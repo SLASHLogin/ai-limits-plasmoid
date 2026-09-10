@@ -26,6 +26,23 @@ PlasmoidItem {
     readonly property bool horizontalPanel: Plasmoid.formFactor === PlasmaCore.Types.Horizontal
     readonly property int refreshSeconds: Math.max(60, Number(Plasmoid.configuration.refreshInterval) || 300)
     readonly property bool showUnsupported: Plasmoid.configuration.showUnsupported !== false
+    // Ids the user has switched off, as a lookup rather than a repeated scan
+    // of a comma-separated string for every provider on every repaint.
+    readonly property var hiddenProviders: {
+        var result = {};
+        var raw = String(Plasmoid.configuration.hiddenProviders || "");
+        raw.split(",").forEach(function (id) {
+            var trimmed = id.trim();
+            if (trimmed.length > 0) {
+                result[trimmed] = true;
+            }
+        });
+        return result;
+    }
+
+    function providerVisible(provider) {
+        return !root.hiddenProviders[String(provider.id || "")];
+    }
 
     property bool loading: false
     property string lastUpdated: ""
@@ -37,6 +54,9 @@ PlasmoidItem {
     ]
 
     readonly property var displayedProviders: providers.filter(function (provider) {
+        if (!root.providerVisible(provider)) {
+            return false;
+        }
         return root.showUnsupported || provider.state === "ok" || provider.state === "stale";
     })
     // Providers discovered through the optional CodexBar CLI are shown in the
@@ -44,7 +64,7 @@ PlasmoidItem {
     // panel representation grows with every row it draws, so including them
     // would push the rest of the panel off a normal-width screen.
     readonly property var panelProviders: providers.filter(function (provider) {
-        return String(provider.id || "").indexOf("codexbar:") !== 0;
+        return root.providerVisible(provider) && String(provider.id || "").indexOf("codexbar:") !== 0;
     })
     readonly property string statusLine: {
         var known = providers.filter(function (provider) {
@@ -184,6 +204,15 @@ PlasmoidItem {
                 throw new Error("Invalid provider payload");
             }
             root.providers = payload.providers;
+            // Record what exists so the settings page can offer a checkbox for
+            // providers it could not otherwise enumerate, such as any that only
+            // appear through CodexBar.
+            // "," separates entries and "=" separates id from name, so strip
+            // both from the name rather than let a vendor label corrupt the list.
+            Plasmoid.configuration.lastProviderList = payload.providers.map(function (provider) {
+                var label = String(provider.name || provider.id).replace(/[,=]/g, " ").trim();
+                return String(provider.id) + "=" + label;
+            }).join(",");
             root.lastUpdated = payload.fetchedAt || "";
             root.loading = false;
             root.errorText = "";

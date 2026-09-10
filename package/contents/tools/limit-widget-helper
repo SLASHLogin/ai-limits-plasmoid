@@ -838,13 +838,25 @@ def codexbar_record(entry: Any) -> dict[str, Any] | None:
     }
 
 
-def codexbar_entries() -> list[dict[str, Any]]:
+def codexbar_program(configured: Any = None) -> str | None:
+    """Locate the CodexBar CLI: explicit path, environment, then PATH."""
+    for candidate in (configured, os.environ.get("LIMIT_WIDGET_CODEXBAR")):
+        if isinstance(candidate, str) and candidate.strip():
+            path = Path(candidate.strip()).expanduser()
+            if path.is_file() and os.access(path, os.X_OK):
+                return str(path)
+            return None
+    return shutil_which("codexbar")
+
+
+def codexbar_entries(program: str | None = None) -> list[dict[str, Any]]:
     """Run the CodexBar CLI once and return its provider entries."""
-    if not shutil_which("codexbar"):
+    program = program or codexbar_program()
+    if not program:
         return []
     try:
         completed = subprocess.run(
-            ["codexbar", "usage", "--format", "json", "--no-color"],
+            [program, "usage", "--format", "json", "--no-color"],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -865,10 +877,10 @@ def codexbar_entries() -> list[dict[str, Any]]:
     return [item for item in payload if isinstance(item, dict)] if isinstance(payload, list) else []
 
 
-def codexbar_extra_providers(covered: set[str]) -> list[dict[str, Any]]:
+def codexbar_extra_providers(covered: set[str], program: str | None = None) -> list[dict[str, Any]]:
     """Rows for CodexBar providers this widget has no native collector for."""
     rows: list[dict[str, Any]] = []
-    for entry in codexbar_entries():
+    for entry in codexbar_entries(program):
         provider_id = entry.get("provider")
         if not isinstance(provider_id, str) or provider_id in covered:
             continue
@@ -923,7 +935,10 @@ def snapshot() -> dict[str, Any]:
     # Opt out with {"codexbar": {"enabled": false}} in providers.json.
     codexbar_preference = configured.get("codexbar", {})
     if not (isinstance(codexbar_preference, dict) and codexbar_preference.get("enabled") is False):
-        output.extend(codexbar_extra_providers({spec["id"] for spec in PROVIDERS}))
+        configured_path = codexbar_preference.get("path") if isinstance(codexbar_preference, dict) else None
+        program = codexbar_program(configured_path)
+        if program:
+            output.extend(codexbar_extra_providers({spec["id"] for spec in PROVIDERS}, program))
 
     return {
         "version": VERSION,

@@ -11,5 +11,22 @@
         <entry name="showUnsupported" type="Bool">
             <default>true</default>
         </entry>
+        <!-- Comma-separated provider ids to hide. Hiding rather than choosing
+             what to show means a newly supported provider appears by default
+             instead of silently missing from an existing configuration. -->
+        <entry name="hiddenProviders" type="String">
+            <default></default>
+        </entry>
+        <!-- Absolute path to the CodexBar CLI, for installs that are not on
+             PATH. Empty means "look for codexbar on PATH". -->
+        <entry name="codexbarPath" type="String">
+            <default></default>
+        </entry>
+        <!-- Written by the widget after each refresh as "id=Name,id=Name", so
+             the settings page can list providers it has no other way to know
+             about — the ones discovered through CodexBar. -->
+        <entry name="lastProviderList" type="String">
+            <default></default>
+        </entry>
     </group>
 </kcfg>

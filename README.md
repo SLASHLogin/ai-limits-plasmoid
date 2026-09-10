@@ -158,6 +158,10 @@ which would otherwise grow past the width of the screen. Turn it off with:
 Refresh is five minutes by default and can be changed in the widget settings
 from 1–60 minutes. Press **Refresh** in the popup for an immediate update.
 
+The settings page also lists every provider the widget has seen, so you can
+switch off the ones you do not use, and takes an explicit path to the CodexBar
+CLI if yours is not on `PATH`.
+
 ## Provider limitations
 
 - **Codex / ChatGPT:** the helper uses the same OAuth login and usage endpoint

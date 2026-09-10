@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0
+
+- New: choose which providers the widget shows, in its settings. The list is
+  built from whatever the collector last reported, so providers that exist only
+  through CodexBar can be switched off too. Stored as ids to hide, so a newly
+  supported provider appears by default instead of being silently absent from
+  an existing configuration.
+- New: a CodexBar CLI path setting, for installs that are not on `PATH`.
+- Added `docs/feature-parity.md` comparing this widget against the others in
+  its category, including what is still missing.
+
 ## 1.1.0
 
 - New: providers from the [CodexBar](https://github.com/steipete/CodexBar) CLI
