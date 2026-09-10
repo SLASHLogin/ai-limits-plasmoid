@@ -1,0 +1,44 @@
+name: A provider stopped reporting
+description: Codex, Claude, or Copilot shows an error, a dash, or a stale number.
+labels: ["provider"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These are vendor client endpoints, not documented public APIs, so they
+        move without notice. Reports like this are genuinely useful — thank you.
+
+        **Please do not paste credentials, tokens, or the contents of
+        `~/.claude/.credentials.json`, `~/.codex/auth.json`, or your GitHub
+        CLI config.** Nothing in this form needs them.
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options: [Codex / ChatGPT, Claude Code, GitHub Copilot]
+    validations:
+      required: true
+  - type: textarea
+    id: shown
+    attributes:
+      label: What the widget shows
+      placeholder: e.g. "Sign in with Claude Code to read usage", or a dash, or a number hours out of date
+    validations:
+      required: true
+  - type: textarea
+    id: helper
+    attributes:
+      label: Collector output
+      description: |
+        Run the collector and paste the row for the affected provider.
+        It prints usage numbers only — no credentials.
+      value: |
+        ```
+        $ python3 ~/.local/share/plasma/plasmoids/dev.slashlogin.ailimits/contents/tools/limit-widget-helper --json | python3 -m json.tool
+
+        ```
+  - type: input
+    id: plasma
+    attributes:
+      label: Plasma version
+      placeholder: plasmashell --version

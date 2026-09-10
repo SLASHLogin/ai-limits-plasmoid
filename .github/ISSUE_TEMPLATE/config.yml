@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Ask a question or float an idea
+    url: https://github.com/SLASHLogin/ai-limits-plasmoid/discussions
+    about: Not sure whether something fits? Ask here — half-formed ideas welcome.

@@ -1,5 +1,14 @@
 # AI Limits — KDE Plasma 6 widget
 
+[![CI](https://github.com/SLASHLogin/ai-limits-plasmoid/actions/workflows/ci.yml/badge.svg)](https://github.com/SLASHLogin/ai-limits-plasmoid/actions/workflows/ci.yml)
+[![License: GPL v3+](https://img.shields.io/badge/License-GPLv3+-blue.svg)](LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+**Contributions are very welcome** — bug reports, new providers, panel layouts,
+and translations especially. If you are not sure whether an idea fits, open an
+issue and ask; a rough patch with a question attached is fine. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) to get started.
+
 A small Plasma 6 panel widget for keeping Codex/ChatGPT, Claude Code, and
 GitHub Copilot limits in one monochrome view. The panel representation is a
 single compact summary (`C  — · A  — · G  —`); clicking it opens a popup with
@@ -190,8 +199,19 @@ To build the archive for Store upload:
 
 ## Contributing
 
-Patches are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to build
-and test, and for the sign-off this project asks for.
+Contributions are welcome and actively wanted. Good places to start:
+
+- **Add a provider.** The collector is one Python file and each provider is a
+  self-contained function; `CONTRIBUTING.md` walks through it.
+- **Report what breaks.** These are vendor client endpoints and they move.
+  An issue saying "Codex stopped reporting today" is genuinely useful.
+- **Translations.** Strings go through `i18n()`/`qsTr()` already.
+- **Panel layouts.** Vertical panels and very small panel heights get the least
+  testing.
+
+Every pull request runs the collector tests plus licence and secret hygiene
+checks, and attaches a built package a reviewer can install. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for the build steps and the DCO sign-off.
 
 ## License
 
@@ -204,6 +224,11 @@ the MIT license during development before that, and anyone who took a copy of
 those earlier commits keeps their MIT rights to them; relicensing applies going
 forward, not retroactively.
 
-Provider marks come from third-party sources under their own licenses, and the
-marks themselves are trademarks of their owners; see
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+The provider logos are **not** covered by the GPL grant. They are trademarks of
+OpenAI, Anthropic, and GitHub, used only to identify which service each row
+refers to, and excluded as an additional term under GPL-3.0 section 7(e). See
+[`TRADEMARKS.md`](TRADEMARKS.md) for the notice and
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for each file's origin.
+
+This project is not affiliated with, endorsed by, or sponsored by OpenAI,
+Anthropic, or GitHub.

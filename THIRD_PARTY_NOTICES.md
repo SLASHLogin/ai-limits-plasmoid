@@ -14,14 +14,12 @@ redistributed as part of this GPL work with their copyright notices intact.
 
 ## Trademarks
 
-Copyright licensing and trademark permission are separate questions. "OpenAI",
-"ChatGPT", "Codex", "Claude", "Anthropic", "GitHub", and "Copilot", and the
-marks representing them, are trademarks of their respective owners. They are
-used here only nominatively, to identify which service each row's usage figure
-refers to. This project is not affiliated with, endorsed by, or sponsored by
-OpenAI, Anthropic, or GitHub.
+The marks these files depict are trademarks of their owners and are **not**
+covered by this project's GPL grant. See [`TRADEMARKS.md`](TRADEMARKS.md) for
+the full notice, made as an additional term under GPL-3.0 section 7(e).
 
-The OpenAI mark in particular is covered by OpenAI's brand guidelines rather
-than by an open-source license. Confirm current redistribution permission for
-all three marks before publishing a build that bundles them; see the release
-checks in [`kde-store.md`](docs/kde-store.md).
+`codex-symbolic.svg` is the one file here with no open-source license: it is
+OpenAI's brand asset, used under OpenAI's brand guidelines rather than a
+copyright license. Confirm current redistribution permission before publishing
+a build that bundles it; see the release checks in
+[`kde-store.md`](docs/kde-store.md).

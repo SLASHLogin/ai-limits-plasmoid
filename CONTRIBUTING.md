@@ -16,6 +16,24 @@ The test suite uses sanitized temporary configuration and never contacts a
 provider. Before sending a change, please also check it by hand in a real
 panel: horizontal and vertical, light and dark, and with a provider signed out.
 
+## What CI checks
+
+Every pull request runs, with a read-only token and no access to repository
+secrets:
+
+- the collector tests, with provider collection disabled so CI never contacts
+  OpenAI, Anthropic, or GitHub from your patch;
+- `metadata.json` and `main.xml` validity, and that the declared licence is
+  still GPL-3.0-or-later;
+- an SPDX header on every source file;
+- a scan of your diff for credentials and for real home-directory paths — if it
+  fires, rotate the credential first, then rewrite the branch;
+- a DCO sign-off on each commit;
+- a build of the Store archive, attached to the run as a downloadable
+  artifact so a reviewer can install your change without building it.
+
+None of these post comments or write to the repository.
+
 ## Scope
 
 The collector reads sign-ins that the vendor CLIs already store. It does not

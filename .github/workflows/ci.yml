@@ -1,0 +1,166 @@
+# SPDX-FileCopyrightText: 2026 SLASHLogin
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: CI
+
+# `pull_request`, never `pull_request_target`. A fork's PR must run with a
+# read-only token and no access to secrets; `pull_request_target` would run
+# untrusted code with a writable token and the repository's secrets, which is
+# the standard way these workflows get turned into a supply-chain foothold.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege for every job in this file. Nothing here writes to the repo,
+# comments on the PR, or publishes anything.
+permissions:
+  contents: read
+
+# A fork can open many PRs or push repeatedly; superseded runs are cancelled
+# rather than left to occupy runners.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tests:
+    name: Collector tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.12"
+
+      # LIMIT_WIDGET_DISABLE_AUTO keeps the collector off every provider
+      # endpoint. CI has no credentials to read and must not generate traffic
+      # to third parties from a contributor's patch.
+      - name: Run collector tests
+        env:
+          LIMIT_WIDGET_DISABLE_AUTO: "1"
+        run: python3 tests/test_helper.py
+
+      - name: Validate package metadata and configuration XML
+        run: |
+          python3 -m json.tool package/metadata.json >/dev/null
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          ET.parse("package/contents/config/main.xml")
+          print("main.xml OK")
+          PY
+
+      - name: Byte-compile Python sources
+        run: |
+          python3 -m py_compile \
+            package/contents/tools/limit-widget-helper \
+            helper/limit-widget-claude-statusline \
+            helper/limit-widget-setup \
+            tests/test_helper.py
+
+      - name: Build the Store archive
+        run: ./tools/make-store-archive.sh
+
+      - name: Attach the built package
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+        with:
+          name: ai-limits-plasmoid
+          path: dist/*.plasmoid
+          retention-days: 14
+          if-no-files-found: error
+
+  hygiene:
+    name: Licence and secret hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # Needed to diff a PR against its base; still a read-only token.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Every source file carries an SPDX header
+        run: |
+          missing=0
+          while IFS= read -r file; do
+            if ! grep -q "SPDX-License-Identifier" "$file"; then
+              echo "::error file=$file::missing SPDX-License-Identifier header"
+              missing=1
+            fi
+          done < <(git ls-files '*.qml' '*.py' '*.sh' 'helper/*' 'package/contents/tools/*')
+          exit $missing
+
+      - name: Declared licence is GPL-3.0-or-later
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          declared = json.load(open("package/metadata.json"))["KPlugin"]["License"]
+          if declared != "GPL-3.0-or-later":
+              sys.exit(f"::error::metadata.json declares '{declared}', expected GPL-3.0-or-later")
+          print("licence OK")
+          PY
+
+      # A contributor can leak a token by accident. This runs on the patch
+      # itself and fails the PR before a maintainer ever fetches the branch.
+      - name: Scan the diff for credentials
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            range="${{ github.event.pull_request.base.sha }}...HEAD"
+          else
+            range="HEAD~1...HEAD"
+          fi
+          # Deliberately not echoing any match: printing a leaked secret into a
+          # public log would publish the very thing this check is guarding.
+          if git diff "$range" | grep -qE '^\+.*(sk-ant-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{32,}|gh[pousr]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}|-----BEGIN [A-Z ]*PRIVATE KEY|xox[baprs]-[A-Za-z0-9-]{10,})'; then
+            echo "::error::This diff appears to add a credential. Rotate it immediately, then remove it from the branch history."
+            exit 1
+          fi
+          echo "no credential patterns in the diff"
+
+      - name: No personal paths or addresses
+        run: |
+          # /home/me is the documented placeholder; any other home path is a
+          # contributor's real username committed by accident.
+          found=$(git ls-files -z | xargs -0 grep -nIE '/home/[a-z][a-z0-9_-]*' 2>/dev/null \
+                    | grep -vE '/home/me([^a-z0-9_-]|$)' || true)
+          if [ -n "$found" ]; then
+            echo "$found"
+            echo "::error::A real home directory path is committed; use /home/me as a placeholder."
+            exit 1
+          fi
+          echo "no personal paths"
+
+  dco:
+    name: DCO sign-off
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Every commit in this PR is signed off
+        run: |
+          missing=0
+          while IFS= read -r sha; do
+            subject=$(git log -1 --format='%s' "$sha")
+            if ! git log -1 --format='%B' "$sha" | grep -qi '^Signed-off-by: .\+ <.\+@.\+>'; then
+              echo "::error::$(git rev-parse --short "$sha") \"$subject\" is missing a Signed-off-by line"
+              missing=1
+            fi
+          done < <(git rev-list --no-merges "${{ github.event.pull_request.base.sha }}..HEAD")
+          if [ "$missing" -ne 0 ]; then
+            echo "Add one with: git commit --amend -s   (or: git rebase --signoff ${{ github.event.pull_request.base.sha }})"
+            echo "See CONTRIBUTING.md and the DCO file."
+          fi
+          exit $missing
