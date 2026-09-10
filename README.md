@@ -6,11 +6,9 @@ single compact summary (`C  — · A  — · G  —`); clicking it opens a popup
 one symbolic row per provider.
 
 The widget uses the local sign-ins already used by the provider CLIs; it does
-not scrape browser dashboards or read browser cookies. Codex and Copilot are
-read automatically when their local CLI credentials are available. Claude Code
-exposes its subscription windows to its documented status-line command, so a
-small bridge caches those values for the widget. Unknown values stay `—`; they
-are never shown as zero.
+not scrape browser dashboards or read browser cookies. Codex, Claude, and
+Copilot are all read automatically when their local CLI credentials are
+available. Unknown values stay `—`; they are never shown as zero.
 
 ![AI Limits expanded widget](screenshots/widget-popup.png)
 
@@ -48,20 +46,23 @@ After installation, the helper automatically tries:
   keychain-backed login. Run `gh auth login` if needed. This is the endpoint
   used by current Copilot clients, but GitHub does not document it as a public
   third-party API, so it may change.
-- **Claude Code:** the documented `rate_limits.five_hour` and
-  `rate_limits.seven_day` fields from Claude Code's status-line JSON. Run:
+- **Claude Code:** the OAuth login in `~/.claude/.credentials.json` (or
+  `$CLAUDE_CONFIG_DIR`), read through the same usage endpoint Claude Code's own
+  `/usage` command uses. Sign in with the Claude Code CLI. Nothing needs to be
+  running: the widget shows **5h** and **7d** — plus per-model weekly windows on
+  plans that have them — as of every refresh. Expired tokens are refreshed and
+  written back the way the CLI does, so the login keeps working.
+
+If the helper cannot read a Claude login, a status-line bridge can cache the
+same windows instead:
 
 ```sh
 limit-widget-setup claude
 ```
 
 This backs up `~/.claude/settings.json`, wraps your existing status-line
-command, and leaves credentials untouched. The widget will show both **5h** and
-**7d** after Claude Code produces its first status-line update. To configure it
-manually, set your status-line command to
-`limit-widget-claude-statusline --delegate ...`. The bridge stores only
-percentages and reset times in `~/.config/limit-widget/claude-limits.json` with
-mode `0600`.
+command, and leaves credentials untouched. Values recovered this way are marked
+stale and labelled with their age rather than being reset to zero.
 
 If a CLI is not logged in, the popup gives a setup message instead of a fake
 number. For a simple, credential-free snapshot, create
@@ -122,9 +123,10 @@ from 1–60 minutes. Press **Refresh** in the popup for an immediate update.
 - **Codex / ChatGPT:** the helper uses the same OAuth login and usage endpoint
   as the Codex CLI. OpenAI can change this client endpoint; if it stops
   working, sign in again or use a local adapter.
-- **Claude Code:** the widget shows the documented five-hour and seven-day
-  `rate_limits` windows from the status-line input. The values are cached from
-  the last Claude status update while Claude is idle.
+- **Claude Code:** the widget reads the five-hour and seven-day windows, and
+  any per-model weekly windows, from the endpoint behind Claude Code's `/usage`.
+  Anthropic can change this client endpoint; if it stops working, sign in again
+  or use the status-line bridge.
 - **GitHub Copilot:** the helper reads the current premium-interaction quota
   through the logged-in GitHub CLI. Account tiers may expose unlimited chat or
   completion quotas, which are displayed as unlimited rather than converted to

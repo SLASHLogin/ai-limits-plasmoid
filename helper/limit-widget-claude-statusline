@@ -17,6 +17,15 @@ from datetime import datetime, timezone
 from typing import Any
 
 
+# Claude reports one session window plus a weekly window per capped model.
+WINDOWS = (
+    ("five_hour", "5h"),
+    ("seven_day", "7d"),
+    ("seven_day_opus", "Opus 7d"),
+    ("seven_day_sonnet", "Sonnet 7d"),
+)
+
+
 def config_path() -> Path:
     home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
     return home / "limit-widget" / "claude-limits.json"
@@ -55,10 +64,7 @@ def persist(payload: dict[str, Any]) -> None:
         return
     windows = [
         item
-        for item in (
-            window(rate_limits, "five_hour", "5h"),
-            window(rate_limits, "seven_day", "7d"),
-        )
+        for item in (window(rate_limits, key, label) for key, label in WINDOWS)
         if item is not None
     ]
     if not windows:
@@ -107,7 +113,7 @@ def main() -> int:
     try:
         rate_limits = payload.get("rate_limits", {})
         values = []
-        for key, label in (("five_hour", "5h"), ("seven_day", "7d")):
+        for key, label in WINDOWS:
             item = window(rate_limits, key, label)
             if item:
                 values.append(f"{label}:{item['remaining']:.0f}% left")

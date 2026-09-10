@@ -113,7 +113,7 @@ class HelperTest(unittest.TestCase):
         self.assertEqual(codex["state"], "error")
         self.assertIsNone(codex["remaining"])
 
-    def test_elapsed_claude_window_becomes_zero_used(self):
+    def test_elapsed_claude_window_is_stale_rather_than_zero(self):
         with tempfile.TemporaryDirectory() as temp:
             home = Path(temp)
             config_home = home / "config"
@@ -123,6 +123,7 @@ class HelperTest(unittest.TestCase):
                 "providers": {
                     "claude": {
                         "state": "ok",
+                        "fetchedAt": "2020-01-01T00:00:00+00:00",
                         "windows": [
                             {
                                 "id": "five_hour",
@@ -148,6 +149,10 @@ class HelperTest(unittest.TestCase):
             }
             (config_dir / "claude-limits.json").write_text(json.dumps(cache), encoding="utf-8")
             env = os.environ.copy()
+            # No Claude login is reachable, so the helper must fall back to the
+            # cache instead of contacting the usage endpoint.
+            env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
+            env.pop("CLAUDE_CONFIG_DIR", None)
             env.update({
                 "HOME": str(home),
                 "XDG_CONFIG_HOME": str(config_home),
@@ -162,9 +167,39 @@ class HelperTest(unittest.TestCase):
                 env=env,
             )
             payload = json.loads(completed.stdout)
-            windows = payload["providers"][1]["windows"]
-            self.assertEqual([window["usedPercentage"] for window in windows], [0.0, 70.0])
-            self.assertEqual([window["remaining"] for window in windows], [100, 30])
+            claude = payload["providers"][1]
+            # An elapsed reset is not evidence that nothing was consumed since.
+            self.assertEqual(claude["state"], "stale")
+            windows = claude["windows"]
+            self.assertEqual([window["usedPercentage"] for window in windows], [99.0, 70.0])
+            self.assertEqual([window["remaining"] for window in windows], [1, 30])
+            self.assertIn("old", claude["detail"])
+
+    def test_missing_claude_login_never_reports_a_number(self):
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            config_home = home / "config"
+            (config_home / "limit-widget").mkdir(parents=True)
+            env = os.environ.copy()
+            env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
+            env.pop("CLAUDE_CONFIG_DIR", None)
+            env.update({
+                "HOME": str(home),
+                "XDG_CONFIG_HOME": str(config_home),
+                "CODEX_HOME": str(home / "codex"),
+                "PATH": "",
+            })
+            completed = subprocess.run(
+                [sys.executable, str(HELPER), "--json"],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            claude = json.loads(completed.stdout)["providers"][1]
+            self.assertEqual(claude["state"], "unauthenticated")
+            self.assertIsNone(claude["remaining"])
+            self.assertEqual(claude["windows"], [])
 
 
 class ClaudeBridgeTest(unittest.TestCase):
@@ -177,6 +212,7 @@ class ClaudeBridgeTest(unittest.TestCase):
                 "rate_limits": {
                     "five_hour": {"used_percentage": 20, "resets_at": 1782600000},
                     "seven_day": {"used_percentage": 65, "resets_at": 1783000000},
+                    "seven_day_opus": {"used_percentage": 90, "resets_at": 1783000000},
                 }
             }
             subprocess.run(
@@ -189,8 +225,11 @@ class ClaudeBridgeTest(unittest.TestCase):
             )
             cached = json.loads((config_home / "limit-widget" / "claude-limits.json").read_text())
             windows = cached["providers"]["claude"]["windows"]
-            self.assertEqual([window["usedPercentage"] for window in windows], [20, 65])
-            self.assertEqual([window["remaining"] for window in windows], [80, 35])
+            # A per-model weekly cap is recorded too; it often binds first.
+            self.assertEqual([window["id"] for window in windows],
+                             ["five_hour", "seven_day", "seven_day_opus"])
+            self.assertEqual([window["usedPercentage"] for window in windows], [20, 65, 90])
+            self.assertEqual([window["remaining"] for window in windows], [80, 35, 10])
 
 
 if __name__ == "__main__":

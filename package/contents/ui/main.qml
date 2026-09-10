@@ -119,9 +119,11 @@ PlasmoidItem {
         }
         if (percentages.length > 0) {
             if (provider.id === "claude" && percentages.length > 1) {
-                return percentages.map(function (percentage) {
-                    return String(Math.round(percentage)) + "%";
-                }).join("/");
+                // Claude has one session window plus a weekly window per capped
+                // model. Show the session value and the tightest weekly one, so
+                // an Opus or Sonnet cap cannot hide behind the combined total.
+                var weekly = Math.min.apply(null, percentages.slice(1));
+                return String(Math.round(percentages[0])) + "%/" + String(Math.round(weekly)) + "%";
             }
             return String(Math.round(Math.min.apply(null, percentages))) + "%";
         }
