@@ -12,7 +12,14 @@ import org.kde.plasma.plasmoid
 PlasmoidItem {
     id: root
 
-    readonly property string helperCommand: "limit-widget-helper --json"
+    // The collector ships inside the package so a KDE Store install works without
+    // anything on PATH. It is run through python3 rather than executed directly,
+    // because KPackage installs do not reliably preserve the executable bit.
+    readonly property string helperCommand: {
+        var path = Qt.resolvedUrl("../tools/limit-widget-helper").toString();
+        path = decodeURIComponent(path.replace(/^file:\/\//, ""));
+        return "python3 '" + path.replace(/'/g, "'\\''") + "' --json";
+    }
     readonly property bool horizontalPanel: Plasmoid.formFactor === PlasmaCore.Types.Horizontal
     readonly property int refreshSeconds: Math.max(60, Number(Plasmoid.configuration.refreshInterval) || 300)
     readonly property bool showUnsupported: Plasmoid.configuration.showUnsupported !== false

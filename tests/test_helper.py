@@ -9,7 +9,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-HELPER = Path(os.environ.get("LIMIT_WIDGET_HELPER", ROOT / "helper/limit-widget-helper"))
+HELPER = Path(os.environ.get("LIMIT_WIDGET_HELPER", ROOT / "package/contents/tools/limit-widget-helper"))
 CLAUDE_BRIDGE = ROOT / "helper/limit-widget-claude-statusline"
 
 

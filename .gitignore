@@ -1,3 +1,5 @@
 build/
+dist/
 *.qmlc
 __pycache__/
+.claude/settings.local.json

@@ -1,45 +1,76 @@
-# KDE Store publication assessment
+# KDE Store publication
 
-## Recommendation
+## Status
 
-Do not publish the current `0.9.0` package to KDE Store yet. The GitHub source
-release is usable, but a Store installation would install only the plasmoid
-KPackage and would not run this repository's CMake installer.
+The `1.0.0` package is self-contained and ready to upload. The collector ships
+at `contents/tools/limit-widget-helper` inside the package and is invoked
+through `python3` from a package-relative path, so a Store installation works
+with nothing of this project on `PATH`.
 
-## Blocking issue
+The applet id is `dev.slashlogin.ailimits`. It is deliberately not under
+`org.kde.*`, which is reserved for KDE's own projects.
 
-The applet currently invokes `limit-widget-helper --json`. CMake installs that
-helper, the Claude status-line bridge, and the setup utility into
-`~/.local/bin`. KDE Store installs the contents of `package/` under Plasma's
-plasmoid directory; it does not install those external executables.
+## Building the upload archive
 
-Before Store publication, make the downloadable plasmoid self-contained:
+```sh
+./tools/make-store-archive.sh
+```
 
-1. Move or copy the read-only collector into `package/contents/tools/`.
-2. Resolve and invoke that bundled helper from QML using its package-local path.
-3. Keep provider credentials outside the plasmoid and never expose them to QML.
-4. Provide a clear Claude bridge procedure that works for Store installations,
-   where `limit-widget-setup` is not automatically placed on `PATH`.
-5. Test installation from the exact archive intended for upload in a clean
-   user account.
+This writes `dist/ai-limits-<version>.plasmoid` with `metadata.json` at the
+archive root, as KDE's widget packaging documentation requires, and excludes
+`*.qmlc`, `*.jsc`, and `__pycache__`. Verify the exact archive you intend to
+upload before publishing:
 
-## Other release checks
+```sh
+kpackagetool6 --type Plasma/Applet --install dist/ai-limits-1.0.0.plasmoid
+```
+
+## Resolved blockers
+
+1. ~~Move the read-only collector into `package/contents/tools/`.~~ Done.
+2. ~~Resolve and invoke the bundled helper from QML using a package-local
+   path.~~ Done, via `Qt.resolvedUrl`. It is run through `python3` rather than
+   executed directly, because KPackage installs do not reliably preserve the
+   executable bit.
+3. ~~Keep provider credentials outside the plasmoid and never expose them to
+   QML.~~ Unchanged and still true: only normalized numbers cross into QML.
+4. ~~Provide a Claude bridge procedure that works for Store installations.~~ The
+   bridge is now a fallback rather than the primary path; Claude usage is read
+   live from the stored CLI login, so a Store install needs no `PATH` setup.
+5. ~~Add screenshots using sample rather than personal usage data.~~
+   `screenshots/widget-popup.png` is rendered from a sample
+   `~/.config/limit-widget/limits.json`.
+
+## Remaining release checks
 
 - Confirm that OpenAI, Claude, and GitHub marks may be redistributed in the
   uploaded package and retain `THIRD_PARTY_NOTICES.md` in the release source.
-- Clearly disclose that the Codex and Copilot collectors use client/internal
-  endpoints which may change without notice.
-- Add screenshots using sample rather than personal usage data.
+- Test installation from the exact archive intended for upload, in a clean user
+  account.
 - Test horizontal and vertical panels, light and dark themes, offline mode,
   expired authentication, and missing CLIs.
-- Add a privacy statement explaining that collection is local and identifying
-  the endpoints contacted.
-- Build the upload archive from the contents of `package/`, with
-  `metadata.json` at the archive root, as described by KDE's widget setup docs.
 
-## Tentative Store metadata
+## Listing text
+
+Disclose in the Store description, because the Store page is where a user
+decides to install:
+
+> Usage is collected locally. The widget reads the sign-ins the Codex, Claude
+> Code, and GitHub CLIs already store on your machine and contacts only the
+> providers themselves. It sends no telemetry and has no server of its own.
+>
+> Codex and Copilot figures come from client endpoints that those vendors do
+> not document as public third-party APIs, and Claude usage comes from the
+> endpoint behind Claude Code's own `/usage`. Any of them may change without
+> notice.
+
+The full privacy statement is in the project README.
+
+## Store metadata
 
 - Name: **AI Limits**
+- Applet id: **dev.slashlogin.ailimits**
+- Version: **1.0.0**
 - Category: **System Information**
 - Plasma version: **6.0+**
 - License: **MIT** for widget code; third-party marks separately attributed

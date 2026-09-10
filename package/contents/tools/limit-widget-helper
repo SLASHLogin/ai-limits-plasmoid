@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Collect and normalize AI subscription limits for the Plasma widget.
 
-The helper uses the same local sign-ins as the vendor CLIs where possible:
-Codex's OAuth file and GitHub CLI's credential store. Claude Code exposes its
-subscription windows to its status-line command, so the bridge installed next
-to this helper writes a small local cache for Claude.
+The helper uses the same local sign-ins as the vendor CLIs: Codex's OAuth file,
+GitHub CLI's credential store, and Claude Code's OAuth login, which is read
+through the usage endpoint behind Claude Code's own /usage. The status-line
+bridge is only a fallback for Claude logins this helper cannot read, and its
+cached values are reported as stale rather than refreshed.
+
+It ships inside the widget package so a KDE Store install needs nothing on
+PATH, and it is also installed to ~/.local/bin by CMake for command-line use.
 
 No credentials are printed or sent to the QML applet. The Codex and Copilot
 endpoints are vendor-client endpoints rather than stable public APIs; failures
@@ -95,8 +99,19 @@ def load_json(path: Path) -> Any:
 def write_json_atomic(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
-    os.chmod(temporary, 0o600)
+    # These files hold OAuth tokens, so the descriptor is opened 0600 rather
+    # than written under the umask and narrowed afterwards: a chmod after the
+    # write leaves the token world-readable for the length of the write.
+    # O_CREAT leaves an existing file's mode alone, and a .tmp left behind by an
+    # older build would still carry 0644, so drop it before creating the new one.
+    temporary.unlink(missing_ok=True)
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, separators=(",", ":"))
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
     temporary.replace(path)
 
 

@@ -10,10 +10,10 @@
         "Category": "System Information",
         "Description": "A monochrome panel widget for AI service limits",
         "Icon": "view-statistics",
-        "Id": "org.kde.limitwidget",
+        "Id": "dev.slashlogin.ailimits",
         "License": "MIT",
         "Name": "AI Limits",
-        "Version": "0.9.0",
+        "Version": "1.0.0",
         "Website": "https://github.com/SLASHLogin/ai-limits-plasmoid"
     },
     "X-Plasma-API-Minimum-Version": "6.0"

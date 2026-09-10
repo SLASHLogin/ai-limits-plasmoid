@@ -14,22 +14,30 @@ available. Unknown values stay `—`; they are never shown as zero.
 
 ## Install
 
-Dependencies are the normal Plasma 6 runtime and Python 3 for the companion
-helper. Build and install for the current user:
+The only dependencies are the normal Plasma 6 runtime and Python 3. The
+collector ships inside the widget package, so no separate executable has to be
+on `PATH`.
+
+From the KDE Store, install through **Edit Panel → Add Widgets → Get New
+Widgets**, or install the downloaded archive directly:
+
+```sh
+kpackagetool6 --type Plasma/Applet --install ai-limits.plasmoid
+```
+
+From source, either install the package alone:
+
+```sh
+kpackagetool6 --type Plasma/Applet --install package
+```
+
+or use CMake, which additionally puts the collector and the optional Claude
+status-line bridge on `PATH` for command-line use:
 
 ```sh
 cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$HOME/.local"
 cmake --build build
 cmake --install build
-```
-
-Make sure `~/.local/bin` is in the environment used to start Plasma. To test
-without installing, install the package with the Plasma package tool and put
-the helper on `PATH`:
-
-```sh
-kpackagetool6 --type Plasma/Applet --install package
-PATH="$HOME/.local/bin:$PATH" plasmashell --replace
 ```
 
 Add **AI Limits** to the panel using **Edit Panel → Add Widgets**, then drag it
@@ -136,13 +144,32 @@ The popup links to each provider's official usage page. See
 [`docs/provider-support.md`](docs/provider-support.md) for the support matrix
 and endpoint details.
 
+## Privacy
+
+Collection is entirely local. The widget runs one Python collector on your own
+machine and renders what it returns; there is no telemetry, no analytics, and
+no server belonging to this project.
+
+- Credentials are read from the locations the provider CLIs already use:
+  `~/.codex/auth.json`, `~/.claude/.credentials.json`, and GitHub CLI's own
+  credential store. They are never copied elsewhere, never written to Plasma
+  configuration, and never exposed to QML — only normalized numbers reach the
+  widget.
+- When a Claude access token has expired, the collector refreshes it and writes
+  the result back to `~/.claude/.credentials.json` exactly where the CLI expects
+  it, with the file created `0600`.
+- The only network requests are made directly to the providers, over HTTPS:
+  `chatgpt.com` (Codex usage), `api.anthropic.com` and `platform.claude.com`
+  (Claude usage and token refresh), and `api.github.com` via the `gh` CLI
+  (Copilot quota). Requests carry your existing login and nothing else.
+- If a provider is not signed in, its row shows a setup message. Unknown values
+  stay `—` and are never shown as zero.
+
 ## KDE Store status
 
-The project is not yet published on KDE Store. The current Store blocker is
-that the plasmoid depends on helper executables installed by CMake, while KDE
-Store installs only the KPackage. See
-[`docs/kde-store.md`](docs/kde-store.md) for the self-contained packaging plan
-and remaining release checks.
+The widget package is self-contained and ready for Store upload; see
+[`docs/kde-store.md`](docs/kde-store.md) for the release checklist and the
+endpoint-stability disclosure that belongs in the listing.
 
 ## Development and tests
 
@@ -154,6 +181,12 @@ ctest --test-dir build --output-on-failure
 The test suite uses sanitized temporary configuration and never contacts a
 provider. Manual Plasma testing should cover both horizontal and vertical
 panels, a missing helper, malformed JSON, and a command timeout.
+
+To build the archive for Store upload:
+
+```sh
+./tools/make-store-archive.sh
+```
 
 ## License
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(limit-widget VERSION 0.9.0 LANGUAGES NONE)
+project(limit-widget VERSION 1.0.0 LANGUAGES NONE)
 
 include(CTest)
 
@@ -9,10 +9,10 @@ set(PLASMA_APPLETS_INSTALL_DIR "${CMAKE_INSTALL_DATADIR}/plasma/plasmoids"
     CACHE PATH "Directory in which Plasma applets are installed")
 
 install(DIRECTORY package/
-    DESTINATION "${PLASMA_APPLETS_INSTALL_DIR}/org.kde.limitwidget"
+    DESTINATION "${PLASMA_APPLETS_INSTALL_DIR}/dev.slashlogin.ailimits"
     PATTERN "*.qmlc" EXCLUDE)
 install(PROGRAMS
-    helper/limit-widget-helper
+    package/contents/tools/limit-widget-helper
     helper/limit-widget-claude-statusline
     helper/limit-widget-setup
     DESTINATION "${CMAKE_INSTALL_BINDIR}")
@@ -24,7 +24,7 @@ if(BUILD_TESTING)
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_helper.py"
     )
     set_tests_properties(helper PROPERTIES
-        ENVIRONMENT "LIMIT_WIDGET_HELPER=${CMAKE_CURRENT_SOURCE_DIR}/helper/limit-widget-helper"
+        ENVIRONMENT "LIMIT_WIDGET_HELPER=${CMAKE_CURRENT_SOURCE_DIR}/package/contents/tools/limit-widget-helper"
     )
 endif()
 
