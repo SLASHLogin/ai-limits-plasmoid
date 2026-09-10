@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 SLASHLogin
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Build the .plasmoid archive for KDE Store upload.
 #
 # KDE expects metadata.json at the archive root, so the archive is built from

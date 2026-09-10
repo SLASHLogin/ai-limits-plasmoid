@@ -188,8 +188,22 @@ To build the archive for Store upload:
 ./tools/make-store-archive.sh
 ```
 
+## Contributing
+
+Patches are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to build
+and test, and for the sign-off this project asks for.
+
 ## License
 
-The widget code is MIT. Provider marks come from the user-supplied OpenAI
-asset archive, Lobe Icons, and Primer Octicons; see
+The widget is licensed **GPL-3.0-or-later**; see [`LICENSE`](LICENSE). If you
+distribute a modified version, its source has to be available under the same
+terms.
+
+Version 1.0.0 is the first release and is GPL-3.0-or-later. The project carried
+the MIT license during development before that, and anyone who took a copy of
+those earlier commits keeps their MIT rights to them; relicensing applies going
+forward, not retroactively.
+
+Provider marks come from third-party sources under their own licenses, and the
+marks themselves are trademarks of their owners; see
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

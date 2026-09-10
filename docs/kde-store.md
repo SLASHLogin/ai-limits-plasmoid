@@ -73,7 +73,7 @@ The full privacy statement is in the project README.
 - Version: **1.0.0**
 - Category: **System Information**
 - Plasma version: **6.0+**
-- License: **MIT** for widget code; third-party marks separately attributed
+- License: **GPL-3.0-or-later** for widget code; third-party marks separately attributed
 - Homepage: <https://github.com/SLASHLogin/ai-limits-plasmoid>
 - Issues: <https://github.com/SLASHLogin/ai-limits-plasmoid/issues>
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 SLASHLogin
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Persist Claude Code's documented status-line rate_limits for AI Limits.
 
 Claude Code pipes session JSON to its configured status-line command. This

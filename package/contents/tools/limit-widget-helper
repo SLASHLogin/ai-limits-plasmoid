@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 SLASHLogin
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Collect and normalize AI subscription limits for the Plasma widget.
 
 The helper uses the same local sign-ins as the vendor CLIs: Codex's OAuth file,
