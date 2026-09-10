@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1
+
+- Fixed: a Codex Spark weekly cap was labelled `7d`, the same as the combined
+  weekly window, so the popup showed two rows that could not be told apart. It
+  is now labelled `Spark 7d`.
+- Vendor responses are now covered by tests using recorded fixtures, and the
+  test suite runs with outbound network access blocked.
+
 ## 1.0.0
 
 First release.
