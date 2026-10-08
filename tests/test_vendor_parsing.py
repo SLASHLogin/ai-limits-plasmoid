@@ -85,11 +85,50 @@ class VendorParsingTest(unittest.TestCase):
         self.assertEqual(record["state"], "rateLimited")
         self.assertNotIn("windows", record)
 
-    def _codex_auth(self):
-        path = Path(self.enterContext_tmp()) / "auth.json"
-        path.write_text(json.dumps({
-            "tokens": {"access_token": "not-a-real-token", "account_id": "acct"}
+    def test_codex_flat_login_from_cliproxyapi_is_read(self):
+        """CLIProxyAPI keeps the same token fields at the top level, not under "tokens"."""
+        h = self.helper
+        seen = {}
+
+        def fake_request(url, headers, *a, **k):
+            seen["auth"] = headers["Authorization"]
+            seen["account"] = headers.get("ChatGPT-Account-Id")
+            return fixture("codex-usage.json"), {}, 200, None
+
+        h.http_json = fake_request
+        h.codex_auth_path = lambda: self._codex_auth(flat=True)
+
+        record = h.codex_source()
+        self.assertEqual(record["state"], "ok")
+        self.assertEqual(seen["auth"], "Bearer not-a-real-token")
+        self.assertEqual(seen["account"], "acct")
+
+    def test_refresh_keeps_hardlinked_login_in_sync(self):
+        """A refreshed token must reach CLIProxyAPI's copy, not just a replaced file."""
+        h = self.helper
+        temp = Path(self.enterContext_tmp())
+        cliproxy = temp / "cliproxy.json"
+        cliproxy.write_text(json.dumps({
+            "access_token": "old-token", "refresh_token": "refresh", "account_id": "acct"
         }), encoding="utf-8")
+        link = temp / "auth.json"
+        os.link(cliproxy, link)
+        responses = [
+            (None, {}, 401, None),
+            ({"access_token": "new-token"}, {}, 200, None),
+            (fixture("codex-usage.json"), {}, 200, None),
+        ]
+        h.http_json = lambda *a, **k: responses.pop(0)
+        h.codex_auth_path = lambda: link
+
+        self.assertEqual(h.codex_source()["state"], "ok")
+        self.assertEqual(json.loads(cliproxy.read_text(encoding="utf-8"))["access_token"], "new-token")
+        self.assertEqual(os.stat(link).st_ino, os.stat(cliproxy).st_ino)
+
+    def _codex_auth(self, flat=False):
+        path = Path(self.enterContext_tmp()) / "auth.json"
+        tokens = {"access_token": "not-a-real-token", "account_id": "acct"}
+        path.write_text(json.dumps(tokens if flat else {"tokens": tokens}), encoding="utf-8")
         return path
 
     def enterContext_tmp(self):

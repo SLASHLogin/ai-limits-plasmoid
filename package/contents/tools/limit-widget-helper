@@ -327,6 +327,30 @@ def codex_auth_path() -> Path:
     return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "auth.json"
 
 
+def write_json_in_place(path: Path, payload: Any) -> None:
+    """Rewrite an existing file without replacing its inode.
+
+    ~/.codex/auth.json is a hardlink to CLIProxyAPI's copy, and a write through a
+    temporary file and rename would leave CLIProxyAPI holding the old token. The
+    existing file's mode is kept, so a file narrowed to 0600 stays that way.
+    """
+    data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    with os.fdopen(os.open(path, os.O_WRONLY), "wb") as stream:
+        stream.write(data)
+        stream.truncate(len(data))
+
+
+def codex_tokens(auth: dict[str, Any]) -> dict[str, Any] | None:
+    """The token record in either layout: Codex CLI nests it under "tokens",
+    CLIProxyAPI keeps it at the top level of the same file."""
+    nested = auth.get("tokens")
+    if isinstance(nested, dict):
+        return nested
+    if isinstance(auth.get("access_token"), str):
+        return auth
+    return None
+
+
 def refresh_codex_token(auth: dict[str, Any], refresh_token: str) -> str | None:
     body = urlencode({
         "grant_type": "refresh_token",
@@ -345,13 +369,15 @@ def refresh_codex_token(auth: dict[str, Any], refresh_token: str) -> str | None:
     if not isinstance(access_token, str) or not access_token:
         return None
 
-    tokens = auth.setdefault("tokens", {})
+    tokens = codex_tokens(auth)
+    if tokens is None:
+        return None
     tokens["access_token"] = access_token
     for key in ("refresh_token", "id_token"):
         if isinstance(payload.get(key), str) and payload[key]:
             tokens[key] = payload[key]
     try:
-        write_json_atomic(codex_auth_path(), auth)
+        write_json_in_place(codex_auth_path(), auth)
     except OSError:
         pass
     return access_token
@@ -386,8 +412,8 @@ def codex_source() -> dict[str, Any]:
     auth = load_json(auth_path)
     if not isinstance(auth, dict):
         return {"state": "unauthenticated", "detail": "Codex login not found"}
-    tokens = auth.get("tokens")
-    if not isinstance(tokens, dict) or not isinstance(tokens.get("access_token"), str):
+    tokens = codex_tokens(auth)
+    if tokens is None or not isinstance(tokens.get("access_token"), str):
         return {"state": "unauthenticated", "detail": "Sign in to Codex CLI with ChatGPT"}
 
     access_token = tokens["access_token"]
