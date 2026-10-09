@@ -75,7 +75,13 @@ After installation, the helper automatically tries:
   subscription's **monthly** allowance in EUR — the one monthly usage pool
   shared across Studio, the API, and Vibe Code — with the plan and credit
   balance in the row's detail. Pay-as-you-go accounts without a monthly budget
-  show the credit balance only.
+  show the credit balance only. The separate **Vibe Code monthly-plan** window
+  is only exposed to a browser session, so it is opt-in: paste the `Cookie`
+  header from <https://admin.mistral.ai/subscription> into
+  `~/.config/limit-widget/providers.json` as
+  `{"providers": {"mistral": {"cookie": "…"}}}` — keep the file `0600`, it
+  holds a session cookie. The window appears as a second row on the Mistral
+  entry and the session expires, so re-paste when the row notes it.
 
 If the helper cannot read a Claude login, a status-line bridge can cache the
 same windows instead:
@@ -135,6 +141,11 @@ local command for each provider:
 }
 ```
 
+The Mistral entry also accepts a `cookie` key instead of a `command` — the
+pasted Admin-session Cookie header described above, which adds the Vibe Code
+monthly-plan window. A `command` overrides automatic collection for its
+provider entirely, so the two keys are not combined.
+
 Each command must print one JSON object to stdout, for example:
 
 ```json
@@ -193,8 +204,8 @@ CLI if yours is not on `PATH`.
 - **Mistral Vibe:** the helper reads the subscription's monthly allowance and
   month-to-date spend from Mistral's billing endpoints, using the API key the
   Vibe CLI stores. Those endpoints are not documented as a public API, and the
-  key needs billing scope; the separate Vibe Code plan window the Admin console
-  shows is only available to a browser session and is not read.
+  key needs billing scope. The Vibe Code monthly-plan window needs a browser
+  session, supplied as a pasted Cookie header, and the session expires.
 
 The popup links to each provider's official usage page. See
 [`docs/provider-support.md`](docs/provider-support.md) for the support matrix
@@ -220,6 +231,11 @@ no server belonging to this project.
   (Claude usage and token refresh), `api.github.com` via the `gh` CLI (Copilot
   quota), and `api.mistral.ai` (Mistral billing). Requests carry your existing
   login and nothing else.
+- The optional Mistral session cookie is read from
+  `~/.config/limit-widget/providers.json` and sent only to `admin.mistral.ai`
+  and `console.mistral.ai`, never anywhere else. When the Vibe plan falls back
+  to the console route, only the `csrftoken` and `ory_session_*` cookies
+  cross; every other cookie stays origin-bound.
 - If a provider is not signed in, its row shows a setup message. Unknown values
   stay `—` and are never shown as zero.
 

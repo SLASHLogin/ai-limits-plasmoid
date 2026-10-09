@@ -6,9 +6,11 @@
 The helper uses the same local sign-ins as the vendor CLIs: Codex's OAuth file,
 GitHub CLI's credential store, Claude Code's OAuth login, which is read
 through the usage endpoint behind Claude Code's own /usage, and the Vibe CLI's
-stored API key, read through Mistral's billing endpoints. The status-line
-bridge is only a fallback for Claude logins this helper cannot read, and its
-cached values are reported as stale rather than refreshed.
+stored API key, read through Mistral's billing endpoints. The Vibe Code
+monthly-plan window is only exposed to a browser session, so it is read from
+an opt-in Cookie header pasted into the widget's own configuration. The
+status-line bridge is only a fallback for Claude logins this helper cannot
+read, and its cached values are reported as stale rather than refreshed.
 
 It ships inside the widget package so a KDE Store install needs nothing on
 PATH, and it is also installed to ~/.local/bin by CMake for command-line use.
@@ -22,8 +24,10 @@ from __future__ import annotations
 
 import fcntl
 import json
+import math
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
@@ -54,6 +58,21 @@ CLAUDE_WINDOWS = (
 MISTRAL_API_BASE = "https://api.mistral.ai/v1"
 MISTRAL_SUBSCRIPTION_URL = MISTRAL_API_BASE + "/billing/subscription"
 MISTRAL_USAGE_URL = MISTRAL_API_BASE + "/billing/usage"
+# The Vibe Code monthly-plan window is only exposed to a browser session:
+# the Admin subscription page (an HTML page with an embedded React Flight
+# budget payload) and, as a fallback, the console's billing.vibeUsage route.
+MISTRAL_ADMIN_BASE = "https://admin.mistral.ai"
+MISTRAL_SUBSCRIPTION_PAGE_URL = MISTRAL_ADMIN_BASE + "/subscription"
+MISTRAL_VIBE_USAGE_URL = (
+    "https://console.mistral.ai/api-ui/trpc/billing.vibeUsage"
+    "?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A"
+    "%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D"
+)
+# React Flight rows: JSON rows start with "[", text/binary rows with one of
+# these length-delimited tags and carry a byte-counted payload that may hold
+# fake rows and newlines.
+FLIGHT_PUSH_MARKER = b"self.__next_f.push("
+FLIGHT_TEXT_TAGS = frozenset(b"TAOoUSsLlGgMmV")
 # platform.claude.com rejects the default urllib agent at the edge, so every
 # request identifies this widget instead of impersonating a vendor CLI.
 USER_AGENT = "limit-widget/0.3"
@@ -335,6 +354,18 @@ def http_json(url: str, headers: dict[str, str], method: str = "GET", data: byte
         return None, {}, 0, "Network request failed"
 
 
+def http_text(url: str, headers: dict[str, str]) -> tuple[str | None, int, str | None]:
+    """Fetch a URL as text, for endpoints that answer HTML rather than JSON."""
+    request = Request(url, headers=headers, method="GET")
+    try:
+        with urlopen(request, timeout=COMMAND_TIMEOUT_SECONDS) as response:
+            return response.read().decode("utf-8", errors="replace"), response.status, None
+    except HTTPError as error:
+        return None, error.code, None
+    except (OSError, URLError, TimeoutError):
+        return None, 0, "Network request failed"
+
+
 def codex_auth_path() -> Path:
     return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "auth.json"
 
@@ -581,19 +612,31 @@ def mistral_api_key() -> str | None:
     return None
 
 
-def mistral_source() -> dict[str, Any]:
+def mistral_timestamp(value: Any) -> str | None:
+    """Vendor timestamps arrive as ISO strings (sometimes over-precise) or epochs."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return iso_from_epoch(value)
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip().replace("Z", "+00:00")
+    # fromisoformat accepts at most microseconds; vendors send more digits.
+    text = re.sub(r"(\.\d{6})\d+", r"\1", text)
+    try:
+        return datetime.fromisoformat(text).isoformat()
+    except ValueError:
+        return value
+
+
+def mistral_billing_source(api_key: str) -> dict[str, Any]:
     """Read the subscription's monthly allowance with the Vibe CLI's own key.
 
     Mistral plans bundle one monthly allowance that is shared across Studio,
     the API, and Vibe Code, so the window covers both. The billing endpoints
     answer a La Plateforme API key — the same credential `vibe --setup` stores
-    — so no browser session is needed, unlike the separate Vibe Code plan
-    window the Admin console shows.
+    — so no browser session is needed for this window.
     """
-    api_key = mistral_api_key()
-    if not api_key:
-        return {"state": "unauthenticated", "detail": "Run vibe --setup or set MISTRAL_API_KEY"}
-
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Accept": "application/json",
@@ -673,6 +716,336 @@ def mistral_source() -> dict[str, Any]:
         }],
         "detail": detail,
     }
+
+
+def mistral_cookie() -> str | None:
+    """The Admin-console session cookie, pasted into providers.json.
+
+    The Vibe Code monthly-plan window is only exposed to a browser session,
+    and browser cookie import is unavailable on Linux, so the user pastes the
+    Cookie header from admin.mistral.ai into
+    {"providers": {"mistral": {"cookie": "..."}}} — the same manual mode
+    CodexBar uses. Keep the file 0600: it holds a session credential.
+    """
+    record = provider_records(load_json(config_dir() / "providers.json")).get("mistral")
+    if not isinstance(record, dict):
+        return None
+    cookie = record.get("cookie")
+    if not isinstance(cookie, str):
+        return None
+    cookie = cookie.strip()
+    if cookie[:7].lower() == "cookie:":
+        cookie = cookie[7:].strip()
+    if not cookie or "\r" in cookie or "\n" in cookie:
+        return None
+    return cookie
+
+
+def cookie_pairs(cookie_header: str) -> dict[str, str]:
+    pairs: dict[str, str] = {}
+    for part in cookie_header.split(";"):
+        name, separator, value = part.partition("=")
+        name = name.strip()
+        if separator and name:
+            pairs[name] = value.strip()
+    return pairs
+
+
+def flight_json_container_end(data: bytes, start: int) -> int | None:
+    """The end of the JSON array starting at `start`, string-aware."""
+    closers: list[int] = []
+    in_string = False
+    escaped = False
+    index = start
+    while index < len(data):
+        byte = data[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif byte == 0x5C:
+                escaped = True
+            elif byte == 0x22:
+                in_string = False
+        elif byte == 0x22:
+            in_string = True
+        elif byte in (0x5B, 0x7B):
+            closers.append(0x5D if byte == 0x5B else 0x7D)
+        elif byte in (0x5D, 0x7D):
+            if not closers or closers[-1] != byte:
+                return None
+            closers.pop()
+            if not closers:
+                return index + 1
+        index += 1
+    return None
+
+
+def flight_chunks(html: bytes) -> list[str]:
+    """The string payloads of the page's self.__next_f.push([1, "..."]) calls."""
+    chunks: list[str] = []
+    cursor = 0
+    while True:
+        marker = html.find(FLIGHT_PUSH_MARKER, cursor)
+        if marker == -1:
+            return chunks
+        start = marker + len(FLIGHT_PUSH_MARKER)
+        while start < len(html) and html[start] in b" \t\r\n":
+            start += 1
+        end = None
+        if start < len(html) and html[start:start + 1] == b"[":
+            end = flight_json_container_end(html, start)
+        if end is not None:
+            try:
+                array = json.loads(html[start:end])
+            except ValueError:
+                array = None
+            if (
+                isinstance(array, list)
+                and len(array) >= 2
+                and not isinstance(array[0], bool)
+                and array[0] == 1
+                and isinstance(array[1], str)
+            ):
+                chunks.append(array[1])
+            cursor = end
+        else:
+            cursor = marker + len(FLIGHT_PUSH_MARKER)
+
+
+def flight_models(stream: bytes) -> list[Any] | None:
+    """The JSON rows of a Flight stream, or None when a row is malformed.
+
+    Rows look like "<hex>:<payload>". A payload starting with "[" or "{" is
+    JSON; one starting with a text tag carries a byte-counted payload that is
+    skipped whole, because it can contain fake rows and newlines.
+    """
+    models: list[Any] = []
+    cursor = 0
+    while cursor < len(stream):
+        line_end = stream.find(b"\n", cursor)
+        if line_end == -1:
+            line_end = len(stream)
+        line = stream[cursor:line_end]
+        colon = line.find(b":")
+        if colon <= 0 or not all(_is_hex_digit(byte) for byte in line[:colon]):
+            cursor = line_end + 1 if line_end < len(stream) else line_end
+            continue
+        payload_start = cursor + colon + 1
+        tag = stream[payload_start:payload_start + 1]
+        if tag in (b"[", b"{"):
+            try:
+                models.append(json.loads(stream[payload_start:line_end]))
+            except ValueError:
+                return None
+            cursor = line_end + 1 if line_end < len(stream) else line_end
+            continue
+        if tag and tag[0] in FLIGHT_TEXT_TAGS:
+            comma = stream.find(b",", payload_start, line_end)
+            length_bytes = stream[payload_start + 1:comma] if comma != -1 else b""
+            if (
+                comma == -1
+                or not length_bytes
+                or not all(_is_hex_digit(byte) for byte in length_bytes)
+            ):
+                return None
+            length = int(length_bytes, 16)
+            payload = comma + 1
+            if length > len(stream) - payload:
+                return None
+            cursor = payload + length
+            continue
+        cursor = line_end + 1 if line_end < len(stream) else line_end
+    return models
+
+
+def _is_hex_digit(byte: int) -> bool:
+    return 48 <= byte <= 57 or 65 <= byte <= 70 or 97 <= byte <= 102
+
+
+def mistral_budget_record(raw: Any) -> dict[str, Any] | None:
+    """One api_budget / vibe_budget record, validated, with derived amounts."""
+    if not isinstance(raw, dict):
+        return None
+    percentage = finite_number(raw.get("usage_percentage"))
+    limit = finite_number(raw.get("initial_budget"))
+    currency = raw.get("currency")
+    if (
+        percentage is None or not math.isfinite(percentage) or percentage < 0
+        or limit is None or not math.isfinite(limit) or limit <= 0
+        or not isinstance(currency, str) or not currency.strip()
+    ):
+        return None
+    used = limit * percentage / 100
+    if not math.isfinite(used):
+        return None
+    return {
+        "usedPercentage": percentage,
+        "limit": limit,
+        "used": used,
+        "remaining": max(0, limit - used),
+        "currency": currency.strip().upper(),
+        "resetAt": mistral_timestamp(raw.get("reset_at")),
+    }
+
+
+def budget_record_key(budget: dict[str, Any] | None) -> tuple[Any, ...] | None:
+    if budget is None:
+        return None
+    return (budget["usedPercentage"], budget["limit"], budget["currency"], budget["resetAt"])
+
+
+def collect_budget_records(value: Any, found: dict[tuple[Any, ...], tuple[Any, Any]]) -> None:
+    if isinstance(value, dict):
+        budget = value.get("budget")
+        if isinstance(budget, dict):
+            api = mistral_budget_record(budget.get("api_budget"))
+            vibe = mistral_budget_record(budget.get("vibe_budget"))
+            if api is not None or vibe is not None:
+                key = (budget_record_key(api), budget_record_key(vibe))
+                found[key] = (api, vibe)
+        for child in value.values():
+            collect_budget_records(child, found)
+    elif isinstance(value, list):
+        for child in value:
+            collect_budget_records(child, found)
+
+
+def parse_subscription_budgets(html: str) -> dict[str, Any] | None:
+    """Extract the api_budget / vibe_budget pair from the subscription page.
+
+    The page ships its data as React Flight chunks; exactly one distinct
+    budget record must survive, matching CodexBar's parser, so a partial or
+    contradictory page reads as no data rather than a wrong number.
+    """
+    stream = "".join(flight_chunks(html.encode("utf-8"))).encode("utf-8")
+    models = flight_models(stream)
+    if models is None:
+        return None
+    found: dict[tuple[Any, ...], tuple[Any, Any]] = {}
+    for model in models:
+        collect_budget_records(model, found)
+    if len(found) != 1:
+        return None
+    api, vibe = next(iter(found.values()))
+    return {"api": api, "vibe": vibe}
+
+
+def mistral_vibe_usage_fallback(pairs: dict[str, str]) -> dict[str, Any] | None:
+    """The console's billing.vibeUsage route, forwarded only what it needs.
+
+    Only the csrftoken and ory_session_* cookies cross to console.mistral.ai;
+    every other admin.mistral.ai cookie stays origin-bound, as in CodexBar.
+    """
+    csrf = pairs.get("csrftoken", "").strip()
+    if not csrf or any(character in csrf for character in ";,\r\n"):
+        return None
+    console_cookie = "; ".join(
+        ["csrftoken=" + csrf]
+        + [f"{name}={pairs[name]}" for name in pairs if name.startswith("ory_session_")]
+    )
+    payload, _, status, error = http_json(MISTRAL_VIBE_USAGE_URL, {
+        "Accept": "*/*",
+        "Cookie": console_cookie,
+        "X-CSRFToken": csrf,
+        "User-Agent": USER_AGENT,
+    })
+    if error or status != 200 or not isinstance(payload, list) or not payload:
+        return None
+    first = payload[0]
+    result = first.get("result") if isinstance(first, dict) else None
+    data = result.get("data") if isinstance(result, dict) else None
+    inner = data.get("json") if isinstance(data, dict) else None
+    if not isinstance(inner, dict):
+        return None
+    percentage = finite_number(inner.get("usage_percentage"))
+    if percentage is None or not math.isfinite(percentage) or not 0 <= percentage <= 100:
+        return None
+    return {
+        "id": "vibe",
+        "label": "Vibe",
+        "unit": "percent",
+        "usedPercentage": percentage,
+        "resetAt": mistral_timestamp(inner.get("reset_at")),
+    }
+
+
+def mistral_vibe_plan(cookie: str) -> dict[str, Any]:
+    """The Vibe Code monthly-plan window, read with a browser session.
+
+    Returns {"window": ... | None, "note": ... | None, "state": ...}. The note
+    explains a configured-but-failing session; the state only matters when no
+    window was produced.
+    """
+    pairs = cookie_pairs(cookie)
+    if not any(name.startswith("ory_session_") for name in pairs):
+        return {"window": None, "note": "Vibe plan needs an ory_session cookie", "state": "error"}
+    html, status, error = http_text(MISTRAL_SUBSCRIPTION_PAGE_URL, {
+        "Accept": "text/html",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cookie": cookie,
+        "Referer": MISTRAL_SUBSCRIPTION_PAGE_URL,
+        "User-Agent": USER_AGENT,
+    })
+    if error:
+        return {"window": None, "note": "Vibe plan request failed", "state": "error"}
+    if status in {401, 403}:
+        return {"window": None, "note": "Vibe session expired; paste a fresh cookie", "state": "unauthenticated"}
+    if status != 200 or html is None:
+        return {"window": None, "note": "Vibe plan unavailable", "state": "error"}
+
+    budgets = parse_subscription_budgets(html)
+    budget = budgets.get("vibe") if budgets else None
+    if budget is None:
+        # The console route answers a percentage only, where the page's
+        # vibe_budget carries the EUR allowance.
+        budget = mistral_vibe_usage_fallback(pairs)
+    else:
+        budget = {
+            "id": "vibe",
+            "label": "Vibe",
+            "unit": "count",
+            "remaining": budget["remaining"],
+            "limit": budget["limit"],
+            "used": budget["used"],
+            "resetAt": budget["resetAt"],
+        }
+    if budget is None:
+        # A plan without a Vibe budget is a legitimate absence, not an error.
+        return {"window": None, "note": None, "state": "ok"}
+    return {"window": budget, "note": None, "state": "ok"}
+
+
+def mistral_source() -> dict[str, Any]:
+    """Combine the API-key allowance with the browser-session Vibe plan."""
+    api_key = mistral_api_key()
+    cookie = mistral_cookie()
+    if not api_key and not cookie:
+        return {"state": "unauthenticated",
+                "detail": "Run vibe --setup or add a Mistral cookie in providers.json"}
+
+    billing = mistral_billing_source(api_key) if api_key else None
+    vibe = mistral_vibe_plan(cookie) if cookie else None
+
+    windows: list[dict[str, Any]] = []
+    detail = ""
+    if billing is not None:
+        windows.extend(billing.get("windows") or [])
+        detail = billing.get("detail") or ""
+    if vibe is not None and vibe.get("window"):
+        windows.append(vibe["window"])
+    if vibe is not None and vibe.get("note"):
+        detail = f"{detail} · {vibe['note']}" if detail else vibe["note"]
+
+    if windows or (billing is not None and billing.get("state") == "ok"):
+        result = {"state": "ok", "detail": detail or "Mistral subscription"}
+        if windows:
+            result["windows"] = windows
+        return result
+    if billing is not None:
+        return billing
+    if vibe is not None:
+        return {"state": vibe["state"], "detail": vibe["note"] or "Mistral returned no allowance"}
+    return {"state": "unknown", "detail": "Mistral returned no allowance"}
 
 
 def shutil_which(command: str) -> str | None:

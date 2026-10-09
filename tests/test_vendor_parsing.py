@@ -43,6 +43,10 @@ def fixture(name):
 class VendorParsingTest(unittest.TestCase):
     def setUp(self):
         self.helper = load_helper()
+        # The Mistral row also reads a session cookie from the user's widget
+        # configuration; tests must not depend on whatever providers.json
+        # happens to sit on the machine running them.
+        self.helper.mistral_cookie = lambda: None
 
     def windows_by_label(self, record):
         return {w["label"]: w for w in record["windows"]}
@@ -330,6 +334,194 @@ class VendorParsingTest(unittest.TestCase):
         self.assertEqual(record["state"], "error")
         self.assertNotIn("windows", record)
 
+    def stub_mistral_web(self, api_key=None, cookie=None,
+                         subscription=None, usage=None, sub_status=200, usage_status=200,
+                         page=None, page_status=200, fallback=None, fallback_status=200):
+        """Stub both Mistral paths: the API-key billing endpoints and the
+        browser-session Admin page plus the console fallback route."""
+        h = self.helper
+        h.mistral_api_key = lambda: api_key
+        h.mistral_cookie = lambda: cookie
+        seen = {"calls": []}
+
+        def fake_json(url, headers, *a, **k):
+            seen["calls"].append(("json", url, headers))
+            if url.startswith(h.MISTRAL_SUBSCRIPTION_URL):
+                return subscription, {}, sub_status, None
+            if url.startswith(h.MISTRAL_USAGE_URL):
+                return usage, {}, usage_status, None
+            if url.startswith(h.MISTRAL_VIBE_USAGE_URL):
+                return fallback, {}, fallback_status, None
+            raise AssertionError("unexpected request to " + url)
+
+        def fake_text(url, headers, *a, **k):
+            seen["calls"].append(("text", url, headers))
+            if page_status == 200:
+                return page, 200, None
+            return None, page_status, None
+
+        h.http_json = fake_json
+        h.http_text = fake_text
+        return seen
+
+    def subscription_page(self, payload):
+        """Wrap one budget payload in the page's React Flight envelope."""
+        body = json.dumps(payload, separators=(",", ":"))
+        chunk = format(len(body.encode()), "x") + ":" + body + "\n"
+        return '<script>self.__next_f.push([1,' + json.dumps(chunk) + '])</script>'
+
+    def test_mistral_vibe_plan_window_comes_from_the_subscription_page(self):
+        h = self.helper
+        page = (FIXTURES / "mistral-subscription-page.html").read_text(encoding="utf-8")
+        cookie = "ory_session_default=abc123; csrftoken=tok; theme=dark"
+        seen = self.stub_mistral_web(api_key=None, cookie=cookie, page=page)
+
+        record = h.mistral_source()
+        self.assertEqual(record["state"], "ok")
+        self.assertEqual(len(record["windows"]), 1)
+        window = record["windows"][0]
+        self.assertEqual(window["id"], "vibe")
+        self.assertEqual(window["label"], "Vibe")
+        self.assertEqual(window["unit"], "count")
+        self.assertAlmostEqual(window["limit"], 27.0)
+        self.assertAlmostEqual(window["used"], 17.28)
+        self.assertAlmostEqual(window["remaining"], 9.72)
+        self.assertEqual(window["resetAt"], "2026-11-01T00:00:00+00:00")
+        # The page carried a vibe budget, so the console fallback is not needed.
+        self.assertFalse(any(url.startswith(h.MISTRAL_VIBE_USAGE_URL)
+                             for _, url, _ in seen["calls"]))
+        # The configured cookie is sent to the Admin page verbatim.
+        page_call = next(c for c in seen["calls"] if c[0] == "text")
+        self.assertEqual(page_call[2]["Cookie"], cookie)
+        self.assertEqual(page_call[2]["Referer"], h.MISTRAL_SUBSCRIPTION_PAGE_URL)
+
+    def test_mistral_vibe_plan_falls_back_to_the_console_route(self):
+        h = self.helper
+        # A page whose budget record carries only the API allowance.
+        page = self.subscription_page({"budget": {"api_budget": {
+            "usage_percentage": 36.0, "initial_budget": 27.0,
+            "currency": "EUR", "reset_at": "2026-11-01T00:00:00.000Z",
+        }}})
+        cookie = "theme=dark; ory_session_default=abc123; csrftoken=tok; other=1"
+        seen = self.stub_mistral_web(api_key=None, cookie=cookie, page=page,
+                                     fallback=fixture("mistral-vibe-usage.json"))
+
+        record = h.mistral_source()
+        self.assertEqual(record["state"], "ok")
+        window = record["windows"][0]
+        # The console route answers a percentage only.
+        self.assertEqual(window["unit"], "percent")
+        self.assertEqual(window["usedPercentage"], 64.0)
+        self.assertEqual(window["resetAt"], "2026-11-01T00:00:00+00:00")
+        # Only the csrftoken and ory_session_* cookies cross to the console.
+        fallback_call = next(c for c in seen["calls"]
+                             if c[1].startswith(h.MISTRAL_VIBE_USAGE_URL))
+        headers = fallback_call[2]
+        self.assertEqual(headers["X-CSRFToken"], "tok")
+        self.assertEqual(headers["Cookie"], "csrftoken=tok; ory_session_default=abc123")
+
+    def test_mistral_vibe_plan_without_a_session_cookie_is_a_note(self):
+        h = self.helper
+        seen = self.stub_mistral_web(api_key=None, cookie="csrftoken=tok")
+
+        record = h.mistral_source()
+        self.assertNotIn("windows", record)
+        self.assertIn("ory_session", record["detail"])
+        # No request is made without a session cookie.
+        self.assertEqual(seen["calls"], [])
+
+    def test_mistral_vibe_session_expired_is_reported(self):
+        h = self.helper
+        self.stub_mistral_web(api_key=None, cookie="ory_session_default=abc123",
+                              page_status=401)
+
+        record = h.mistral_source()
+        self.assertEqual(record["state"], "unauthenticated")
+        self.assertIn("expired", record["detail"])
+
+    def test_mistral_row_combines_the_allowance_and_the_vibe_plan(self):
+        h = self.helper
+        page = (FIXTURES / "mistral-subscription-page.html").read_text(encoding="utf-8")
+        self.stub_mistral_web(
+            api_key="not-a-real-mistral-key",
+            cookie="ory_session_default=abc123; csrftoken=tok",
+            subscription=fixture("mistral-subscription.json"),
+            usage=fixture("mistral-usage.json"),
+            page=page,
+        )
+
+        record = h.mistral_source()
+        self.assertEqual(record["state"], "ok")
+        self.assertEqual([w["id"] for w in record["windows"]], ["monthly", "vibe"])
+        monthly, vibe = record["windows"]
+        self.assertAlmostEqual(monthly["remaining"], 17.25)
+        self.assertAlmostEqual(vibe["remaining"], 9.72)
+        self.assertEqual(record["detail"], "Mistral Pro · €12.5 credits")
+
+    def test_mistral_expired_cookie_does_not_hide_the_allowance(self):
+        h = self.helper
+        self.stub_mistral_web(
+            api_key="not-a-real-mistral-key",
+            cookie="ory_session_default=abc123",
+            subscription=fixture("mistral-subscription.json"),
+            usage=fixture("mistral-usage.json"),
+            page_status=401,
+        )
+
+        record = h.mistral_source()
+        self.assertEqual(record["state"], "ok")
+        self.assertEqual([w["id"] for w in record["windows"]], ["monthly"])
+        self.assertIn("expired", record["detail"])
+
+    def test_subscription_page_fixture_yields_both_budgets(self):
+        h = self.helper
+        page = (FIXTURES / "mistral-subscription-page.html").read_text(encoding="utf-8")
+        budgets = h.parse_subscription_budgets(page)
+        self.assertIsNotNone(budgets)
+        self.assertAlmostEqual(budgets["api"]["usedPercentage"], 36.0)
+        self.assertAlmostEqual(budgets["vibe"]["usedPercentage"], 64.0)
+        self.assertAlmostEqual(budgets["vibe"]["used"], 17.28)
+        self.assertAlmostEqual(budgets["vibe"]["remaining"], 9.72)
+
+    def test_subscription_page_without_budgets_parses_to_none(self):
+        h = self.helper
+        page = '<script>self.__next_f.push([1,"1:{\\"a\\":1}\\n"])</script>'
+        self.assertIsNone(h.parse_subscription_budgets(page))
+
+    def test_subscription_page_with_two_distinct_budgets_is_ambiguous(self):
+        """A contradictory page reads as no data, not a wrong number."""
+        h = self.helper
+        first = self.subscription_page({"budget": {"vibe_budget": {
+            "usage_percentage": 10.0, "initial_budget": 5.0, "currency": "EUR"}}})
+        second = self.subscription_page({"budget": {"vibe_budget": {
+            "usage_percentage": 20.0, "initial_budget": 5.0, "currency": "EUR"}}})
+        self.assertIsNone(h.parse_subscription_budgets(first + second))
+
+    def test_subscription_page_skips_byte_counted_text_rows(self):
+        """A budget embedded in a text row's payload must not be parsed."""
+        h = self.helper
+        fake = json.dumps({"budget": {"vibe_budget": {
+            "usage_percentage": 99.0, "initial_budget": 5.0, "currency": "EUR",
+        }}}, separators=(",", ":"))
+        payload = '{"note":"line one\n' + fake + '"}'
+        body = "T" + format(len(payload.encode()), "x") + "," + payload
+        chunk = format(len(body.encode()), "x") + ":" + body + "\n"
+        page = '<script>self.__next_f.push([1,' + json.dumps(chunk) + '])</script>'
+        self.assertIsNone(h.parse_subscription_budgets(page))
+
+    def test_mistral_vibe_usage_rejects_out_of_range_percentage(self):
+        h = self.helper
+        payload = [{"result": {"data": {"json": {"usage_percentage": 140.0}}}}]
+        h.http_json = lambda *a, **k: (payload, {}, 200, None)
+        pairs = {"csrftoken": "tok", "ory_session_x": "abc"}
+        self.assertIsNone(h.mistral_vibe_usage_fallback(pairs))
+
+    def test_mistral_vibe_usage_rejects_unsafe_csrf_token(self):
+        h = self.helper
+        h.http_json = lambda *a, **k: (_ for _ in ()).throw(AssertionError("no request"))
+        pairs = {"csrftoken": "bad;token", "ory_session_x": "abc"}
+        self.assertIsNone(h.mistral_vibe_usage_fallback(pairs))
+
 
 class MistralKeyTest(unittest.TestCase):
     """The key is read the way the Vibe CLI reads it: env first, then ~/.vibe/.env."""
@@ -376,6 +568,48 @@ class MistralKeyTest(unittest.TestCase):
 
     def test_no_key_anywhere_is_none(self):
         self.assertIsNone(self.helper.mistral_api_key())
+
+
+class MistralCookieTest(unittest.TestCase):
+    """The session cookie is read from the widget's own providers.json."""
+
+    def setUp(self):
+        self.helper = load_helper()
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.config_home = Path(self.temp.name) / "config"
+        (self.config_home / "limit-widget").mkdir(parents=True)
+        self.saved = os.environ.copy()
+
+        def restore():
+            os.environ.clear()
+            os.environ.update(self.saved)
+
+        self.addCleanup(restore)
+        os.environ["XDG_CONFIG_HOME"] = str(self.config_home)
+
+    def write_providers(self, payload):
+        (self.config_home / "limit-widget" / "providers.json").write_text(
+            json.dumps(payload), encoding="utf-8")
+
+    def test_cookie_is_read_from_providers_json(self):
+        self.write_providers({"providers": {"mistral": {"cookie": "ory_session_x=abc; csrftoken=t"}}})
+        self.assertEqual(self.helper.mistral_cookie(), "ory_session_x=abc; csrftoken=t")
+
+    def test_cookie_header_prefix_is_stripped(self):
+        self.write_providers({"providers": {"mistral": {"cookie": "Cookie: ory_session_x=abc"}}})
+        self.assertEqual(self.helper.mistral_cookie(), "ory_session_x=abc")
+
+    def test_other_providers_are_ignored(self):
+        self.write_providers({"providers": {"codex": {"cookie": "nope"}}})
+        self.assertIsNone(self.helper.mistral_cookie())
+
+    def test_missing_file_is_none(self):
+        self.assertIsNone(self.helper.mistral_cookie())
+
+    def test_cookie_with_a_newline_is_rejected(self):
+        self.write_providers({"providers": {"mistral": {"cookie": "ory_session_x=abc\r\nX: y"}}})
+        self.assertIsNone(self.helper.mistral_cookie())
 
 
 class CodexBarInteropTest(unittest.TestCase):

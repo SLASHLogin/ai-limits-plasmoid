@@ -7,9 +7,15 @@
   the subscription's monthly allowance from Mistral's billing endpoints — the
   one monthly usage pool shared across Studio, the API, and Vibe Code. The row
   shows a monthly EUR window with the plan and credit balance in its detail;
-  pay-as-you-go accounts without a monthly budget show the balance only. The
-  separate Vibe Code plan window the Admin console shows needs a browser
-  session and is not read.
+  pay-as-you-go accounts without a monthly budget show the balance only.
+- The Vibe Code monthly-plan window is read too, as a second window on the
+  Mistral row. It is only exposed to a browser session, so it is opt-in:
+  paste the Cookie header from admin.mistral.ai into
+  `{"providers": {"mistral": {"cookie": "…"}}}` in `providers.json` (keep the
+  file `0600`). The helper extracts the budget from the Admin subscription
+  page's embedded payload and falls back to the console's `billing.vibeUsage`
+  route, forwarding only the `csrftoken` and `ory_session_*` cookies. Session
+  cookies expire; the row notes it and the monthly window keeps showing.
 
 ## 1.2.1
 
