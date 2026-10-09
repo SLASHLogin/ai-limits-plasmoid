@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.1
+
+- Fixed: a Codex login kept in CLIProxyAPI was reported as signed out. The
+  collector now reads that layout too, and token refreshes keep it in sync.
+- The panel shows Codex's weekly limit next to its session limit, as it does
+  for Claude.
+
 ## 1.2.0
 
 - New: choose which providers the widget shows, in its settings. The list is
