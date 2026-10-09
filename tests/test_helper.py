@@ -39,7 +39,8 @@ class HelperTest(unittest.TestCase):
     def test_empty_configuration_is_explicitly_unknown(self):
         payload = self.run_helper()
         self.assertEqual(payload["version"], 2)
-        self.assertEqual([p["id"] for p in payload["providers"]], ["codex", "claude", "copilot"])
+        self.assertEqual([p["id"] for p in payload["providers"]],
+                         ["codex", "claude", "copilot", "mistral"])
         self.assertTrue(all(p["state"] == "unsupported" for p in payload["providers"]))
         self.assertTrue(all(p["remaining"] is None for p in payload["providers"]))
 
@@ -52,7 +53,7 @@ class HelperTest(unittest.TestCase):
                 }
             }
         })
-        codex, claude, _ = payload["providers"]
+        codex, claude, _, _ = payload["providers"]
         self.assertEqual(codex["remaining"], 75)
         self.assertEqual(codex["state"], "ok")
         self.assertIsNone(claude["remaining"])
@@ -100,7 +101,7 @@ class HelperTest(unittest.TestCase):
                 }
             }
         })
-        codex, claude, copilot = payload["providers"]
+        codex, claude, copilot, _ = payload["providers"]
         self.assertEqual(codex["unit"], "percent")
         self.assertEqual(codex["remaining"], 0)
         self.assertEqual(claude["unit"], "percent")

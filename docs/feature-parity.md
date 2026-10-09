@@ -10,7 +10,7 @@ these projects are.
 | Feature | AI Limits | psi | EF | CB |
 | --- | --- | --- | --- | --- |
 | Works with nothing else installed | **yes** | no | no | yes |
-| Providers without an extra binary | **3** | 0 | 0 | 1 |
+| Providers without an extra binary | **4** | 0 | 0 | 1 |
 | Providers with CodexBar installed | ~69 | ~69 | 58 | — |
 | Refresh interval | yes | yes | yes | yes |
 | Choose which providers to show | **yes** | yes | yes | — |
@@ -41,8 +41,9 @@ these projects are.
 
 1. **Cost and spend.** Both wrappers show it. CodexBar exposes it through a
    second call, `codexbar cost`, with a `daily` series per provider. Only
-   available when CodexBar is installed, so it cannot reach the three native
-   providers without separate work per vendor.
+   available when CodexBar is installed, so it cannot reach the native
+   providers without separate work per vendor. Mistral's monthly spend is
+   already read for the allowance window, but no daily series is kept.
 2. **Burn rate / pace.** Computable from data already collected — the elapsed
    fraction of a window against the used fraction — for any window whose length
    is known. No new data source needed. The most useful of the three.

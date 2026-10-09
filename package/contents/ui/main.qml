@@ -50,7 +50,8 @@ PlasmoidItem {
     property var providers: [
         defaultProvider("codex", "Codex / ChatGPT", "C", "codex-symbolic.svg", "https://chatgpt.com/settings/usage"),
         defaultProvider("claude", "Claude Code", "A", "claude-symbolic.svg", "https://claude.ai/settings/usage"),
-        defaultProvider("copilot", "GitHub Copilot", "G", "copilot-symbolic.svg", "https://github.com/settings/copilot")
+        defaultProvider("copilot", "GitHub Copilot", "G", "copilot-symbolic.svg", "https://github.com/settings/copilot"),
+        defaultProvider("mistral", "Mistral Vibe", "M", "mistral-symbolic.svg", "https://admin.mistral.ai/subscriptions")
     ]
 
     readonly property var displayedProviders: providers.filter(function (provider) {

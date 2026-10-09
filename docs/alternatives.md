@@ -6,7 +6,7 @@ Surveyed 2026-09-10. Star counts and dates are from the GitHub API on that day.
 
 | Project | Stars | Licence | Providers | Extra binary needed | Last push |
 | --- | --- | --- | --- | --- | --- |
-| **AI Limits** (this) | — | GPL-3.0-or-later | 3 native, +CodexBar's when installed | no | active |
+| **AI Limits** (this) | — | GPL-3.0-or-later | 4 native, +CodexBar's when installed | no | active |
 | [psimaker/codexbar-plasmoid](https://github.com/psimaker/codexbar-plasmoid) | 16 | **none declared** | many (CodexBar port) | — | 2026-08-19 |
 | [EvilFreelancer/CodexBar-KDE](https://github.com/EvilFreelancer/CodexBar-KDE) | 3 | MIT | 58, via CodexBar | yes, ~50 MB | 2026-07-13 |
 | [CraigBorrows/claude-usage-widget](https://github.com/CraigBorrows/claude-usage-widget) | 3 | MIT | Claude only | no | 2026-08-08 |
@@ -51,8 +51,9 @@ integrations would be a poor use of anyone's time.
 
 So the CodexBar CLI is supported as an optional source. If `codexbar` is on
 `PATH`, the collector runs `codexbar usage --format json` and adds the
-providers it reports that have no native collector here. Codex, Claude and
-Copilot keep their built-in ones, so the zero-install property survives.
+providers it reports that have no native collector here. Codex, Claude,
+Copilot, and Mistral keep their built-in ones, so the zero-install property
+survives.
 
 That gives a strictly better position than the wrappers: works out of the box
 like the Claude-only widgets, reaches CodexBar's coverage like the wrappers do

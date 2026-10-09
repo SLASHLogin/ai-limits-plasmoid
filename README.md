@@ -9,14 +9,14 @@ and translations especially. If you are not sure whether an idea fits, open an
 issue and ask; a rough patch with a question attached is fine. See
 [`CONTRIBUTING.md`](CONTRIBUTING.md) to get started.
 
-A small Plasma 6 panel widget for keeping Codex/ChatGPT, Claude Code, and
-GitHub Copilot limits in one monochrome view. The panel representation is a
-single compact summary (`C  — · A  — · G  —`); clicking it opens a popup with
-one symbolic row per provider.
+A small Plasma 6 panel widget for keeping Codex/ChatGPT, Claude Code, GitHub
+Copilot, and Mistral Vibe limits in one monochrome view. The panel
+representation is a single compact summary (`C  — · A  — · G  — · M  —`);
+clicking it opens a popup with one symbolic row per provider.
 
 The widget uses the local sign-ins already used by the provider CLIs; it does
-not scrape browser dashboards or read browser cookies. Codex, Claude, and
-Copilot are all read automatically when their local CLI credentials are
+not scrape browser dashboards or read browser cookies. Codex, Claude, Copilot,
+and Mistral are all read automatically when their local CLI credentials are
 available. Unknown values stay `—`; they are never shown as zero.
 
 ![AI Limits expanded widget](screenshots/widget-popup.png)
@@ -69,6 +69,13 @@ After installation, the helper automatically tries:
   running: the widget shows **5h** and **7d** — plus per-model weekly windows on
   plans that have them — as of every refresh. Expired tokens are refreshed and
   written back the way the CLI does, so the login keeps working.
+- **Mistral Vibe:** the API key the Vibe CLI stores, read from `MISTRAL_API_KEY`
+  or `~/.vibe/.env` (or `$VIBE_HOME/.env`), through Mistral's billing
+  endpoints. Run `vibe --setup` to store the key. The widget shows the
+  subscription's **monthly** allowance in EUR — the one monthly usage pool
+  shared across Studio, the API, and Vibe Code — with the plan and credit
+  balance in the row's detail. Pay-as-you-go accounts without a monthly budget
+  show the credit balance only.
 
 If the helper cannot read a Claude login, a status-line bridge can cache the
 same windows instead:
@@ -103,6 +110,12 @@ number. For a simple, credential-free snapshot, create
       "remaining": 180,
       "limit": 300,
       "detail": "Premium requests"
+    },
+    "mistral": {
+      "remaining": 17.25,
+      "limit": 27,
+      "resetAt": "2026-11-01T00:00:00Z",
+      "detail": "Mistral Pro · €12.5 credits"
     }
   }
 }
@@ -116,7 +129,8 @@ local command for each provider:
   "providers": {
     "codex": { "command": ["/home/me/bin/codex-limit"] },
     "claude": { "command": ["/home/me/bin/claude-limit"] },
-    "copilot": { "command": ["/home/me/bin/copilot-limit"] }
+    "copilot": { "command": ["/home/me/bin/copilot-limit"] },
+    "mistral": { "command": ["/home/me/bin/mistral-limit"] }
   }
 }
 ```
@@ -134,7 +148,7 @@ that are world-readable. See `examples/` for copyable templates.
 
 ### More providers through CodexBar (optional)
 
-The three collectors above are built in and need nothing installed. If you want
+The collectors above are built in and need nothing installed. If you want
 breadth as well, install the [CodexBar](https://github.com/steipete/CodexBar)
 CLI (MIT) and this widget will pick up the providers it reports — Cursor,
 Gemini, Grok, OpenRouter, DeepSeek, Zed, AWS Bedrock and many more:
@@ -147,9 +161,10 @@ codexbar config enable --provider cursor
 
 The widget runs `codexbar usage --format json` only if `codexbar` is on `PATH`.
 It contributes providers this widget has no native collector for; Codex,
-Claude, and Copilot keep their built-in ones, so nothing breaks if you remove
-the binary. Extra providers appear in the popup and are kept out of the panel,
-which would otherwise grow past the width of the screen. Turn it off with:
+Claude, Copilot, and Mistral keep their built-in ones, so nothing breaks if you
+remove the binary. Extra providers appear in the popup and are kept out of the
+panel, which would otherwise grow past the width of the screen. Turn it off
+with:
 
 ```json
 { "providers": { "codexbar": { "enabled": false } } }
@@ -175,6 +190,11 @@ CLI if yours is not on `PATH`.
   through the logged-in GitHub CLI. Account tiers may expose unlimited chat or
   completion quotas, which are displayed as unlimited rather than converted to
   a made-up total.
+- **Mistral Vibe:** the helper reads the subscription's monthly allowance and
+  month-to-date spend from Mistral's billing endpoints, using the API key the
+  Vibe CLI stores. Those endpoints are not documented as a public API, and the
+  key needs billing scope; the separate Vibe Code plan window the Admin console
+  shows is only available to a browser session and is not read.
 
 The popup links to each provider's official usage page. See
 [`docs/provider-support.md`](docs/provider-support.md) for the support matrix
@@ -187,8 +207,9 @@ machine and renders what it returns; there is no telemetry, no analytics, and
 no server belonging to this project.
 
 - Credentials are read from the locations the provider CLIs already use:
-  `~/.codex/auth.json`, `~/.claude/.credentials.json`, and GitHub CLI's own
-  credential store. They are never copied elsewhere, never written to Plasma
+  `~/.codex/auth.json`, `~/.claude/.credentials.json`, `~/.vibe/.env` (or the
+  `MISTRAL_API_KEY` environment variable), and GitHub CLI's own credential
+  store. They are never copied elsewhere, never written to Plasma
   configuration, and never exposed to QML — only normalized numbers reach the
   widget.
 - When a Claude access token has expired, the collector refreshes it and writes
@@ -196,8 +217,9 @@ no server belonging to this project.
   it, with the file created `0600`.
 - The only network requests are made directly to the providers, over HTTPS:
   `chatgpt.com` (Codex usage), `api.anthropic.com` and `platform.claude.com`
-  (Claude usage and token refresh), and `api.github.com` via the `gh` CLI
-  (Copilot quota). Requests carry your existing login and nothing else.
+  (Claude usage and token refresh), `api.github.com` via the `gh` CLI (Copilot
+  quota), and `api.mistral.ai` (Mistral billing). Requests carry your existing
+  login and nothing else.
 - If a provider is not signed in, its row shows a setup message. Unknown values
   stay `—` and are never shown as zero.
 
@@ -252,10 +274,10 @@ those earlier commits keeps their MIT rights to them; relicensing applies going
 forward, not retroactively.
 
 The provider logos are **not** covered by the GPL grant. They are trademarks of
-OpenAI, Anthropic, and GitHub, used only to identify which service each row
-refers to, and excluded as an additional term under GPL-3.0 section 7(e). See
-[`TRADEMARKS.md`](TRADEMARKS.md) for the notice and
+OpenAI, Anthropic, GitHub, and Mistral AI, used only to identify which service
+each row refers to, and excluded as an additional term under GPL-3.0 section
+7(e). See [`TRADEMARKS.md`](TRADEMARKS.md) for the notice and
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for each file's origin.
 
 This project is not affiliated with, endorsed by, or sponsored by OpenAI,
-Anthropic, or GitHub.
+Anthropic, GitHub, or Mistral AI.

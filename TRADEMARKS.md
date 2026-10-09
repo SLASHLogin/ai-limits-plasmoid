@@ -15,9 +15,9 @@ this project: the QML, the Python collector, the build files, and the
 documentation.
 
 It does **not** grant any right to use the trademarks, service marks, trade
-names, or logos of OpenAI, Anthropic, or GitHub. Those belong to their
-respective owners, and no such right is or can be granted here, because this
-project does not hold them.
+names, or logos of OpenAI, Anthropic, GitHub, or Mistral AI. Those belong to
+their respective owners, and no such right is or can be granted here, because
+this project does not hold them.
 
 ## Files this applies to
 
@@ -26,17 +26,19 @@ project does not hold them.
 | `package/contents/icons/codex-symbolic.svg` | OpenAI Blossom | OpenAI |
 | `package/contents/icons/claude-symbolic.svg` | Claude mark | Anthropic |
 | `package/contents/icons/copilot-symbolic.svg` | GitHub mark | GitHub, Inc. |
+| `package/contents/icons/mistral-symbolic.svg` | Mistral mark | Mistral AI |
 
 `codex-generic-symbolic.svg` depicts no one's mark. It is a neutral terminal
 glyph drawn for this project, covered by the GPL like any other source file,
 and is there for anyone who would rather not redistribute OpenAI's asset.
 
-The `claude-symbolic.svg` and `copilot-symbolic.svg` **files** are redistributed
-under the MIT license of the icon sets they come from (Lobe Icons and Primer
-Octicons); see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). MIT grants
-copyright permission in the file. It does not grant trademark permission in the
-mark the file depicts. Those are separate questions and this notice concerns the
-second one.
+The `claude-symbolic.svg`, `copilot-symbolic.svg`, and `mistral-symbolic.svg`
+**files** are redistributed under the MIT license of the icon sets they come
+from (Lobe Icons and Primer Octicons); see
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). MIT grants copyright
+permission in the file. It does not grant trademark permission in the mark the
+file depicts. Those are separate questions and this notice concerns the second
+one.
 
 `codex-symbolic.svg` is the one file here with no open-source license at all.
 It is OpenAI's brand asset, shipped unmodified and used nominatively.
@@ -45,8 +47,8 @@ It is OpenAI's brand asset, shipped unmodified and used nominatively.
 
 Each mark identifies which service the usage figure beside it refers to — a
 nominative use. This project is not affiliated with, endorsed by, sponsored by,
-or certified by OpenAI, Anthropic, or GitHub, and nothing here should be read to
-suggest otherwise.
+or certified by OpenAI, Anthropic, GitHub, or Mistral AI, and nothing here
+should be read to suggest otherwise.
 
 ## If you fork or redistribute this
 
@@ -54,12 +56,12 @@ Your GPL rights in the code do not extend to the logos. If you distribute a
 modified version, especially under a different name, you are responsible for
 your own trademark position. In particular:
 
-- OpenAI, Anthropic and GitHub all publish brand guidelines covering their
-  marks. OpenAI's ask third parties to obtain written consent before using
-  their assets and not to alter the logo. This project has not obtained that
-  consent, and the widget renders every icon as a mask recolored to the
-  desktop theme's text color, which changes its appearance even though the
-  shipped file is unmodified.
+- OpenAI, Anthropic, GitHub, and Mistral AI all publish brand guidelines
+  covering their marks. OpenAI's ask third parties to obtain written consent
+  before using their assets and not to alter the logo. This project has not
+  obtained that consent, and the widget renders every icon as a mask recolored
+  to the desktop theme's text color, which changes its appearance even though
+  the shipped file is unmodified.
 - If that is not a position you want to take on in a redistribution, swap
   `codex-symbolic.svg` for the bundled `codex-generic-symbolic.svg`, which
   depicts no mark at all.

@@ -48,7 +48,7 @@ is already Plasma 6 Applets, so they would spend slots on reach you have.
 
 ```
 AI subscription usage limits in a monochrome panel widget: Codex/ChatGPT,
-Claude Code, and GitHub Copilot in one view.
+Claude Code, GitHub Copilot, and Mistral Vibe in one view.
 
 Install: download the .plasmoid, then
   kpackagetool6 --type Plasma/Applet --install ai-limits-1.1.0.plasmoid
@@ -57,11 +57,13 @@ Python 3 - the collector ships inside the package, so nothing has to be on
 PATH.
 
 Collection is entirely local. It reads the sign-ins the Codex, Claude Code,
-and GitHub CLIs already store and contacts only those providers directly. No
-telemetry, no server of its own. Unknown values stay "-", never zero.
+GitHub, and Vibe CLIs already store and contacts only those providers
+directly. No telemetry, no server of its own. Unknown values stay "-", never
+zero.
 
 Claude usage is read live from the endpoint behind Claude Code's /usage, so
-nothing needs to be running.
+nothing needs to be running. Mistral's monthly allowance is read from the
+billing endpoints with the API key the Vibe CLI stores.
 
 Optional: install the CodexBar CLI and the widget also shows the providers it
 reports - Cursor, Gemini, Grok, OpenRouter and more.

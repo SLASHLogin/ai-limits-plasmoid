@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0
+
+- New: Mistral Vibe support. The collector reuses the API key the Vibe CLI
+  stores (`MISTRAL_API_KEY` or `~/.vibe/.env`, `$VIBE_HOME` aware) and reads
+  the subscription's monthly allowance from Mistral's billing endpoints — the
+  one monthly usage pool shared across Studio, the API, and Vibe Code. The row
+  shows a monthly EUR window with the plan and credit balance in its detail;
+  pay-as-you-go accounts without a monthly budget show the balance only. The
+  separate Vibe Code plan window the Admin console shows needs a browser
+  session and is not read.
+
 ## 1.2.1
 
 - Fixed: a Codex login kept in CLIProxyAPI was reported as signed out. The

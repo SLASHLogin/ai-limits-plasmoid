@@ -15,6 +15,12 @@
       "remaining": 180,
       "limit": 300,
       "detail": "Premium requests"
+    },
+    "mistral": {
+      "remaining": 17.25,
+      "limit": 27,
+      "resetAt": "2026-11-01T00:00:00Z",
+      "detail": "Mistral Pro · €12.5 credits"
     }
   }
 }

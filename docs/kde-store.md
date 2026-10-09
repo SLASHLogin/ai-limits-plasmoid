@@ -59,7 +59,7 @@ Product**:
 | --- | --- |
 | Category | Plasma 6 → Plasma 6 Add-Ons → Plasma 6 Applets |
 | Title | AI Limits |
-| Summary | Codex, Claude Code, and GitHub Copilot usage limits in one monochrome panel widget |
+| Summary | Codex, Claude Code, GitHub Copilot, and Mistral Vibe usage limits in one monochrome panel widget |
 | Version | 1.0.0 |
 | License | GPLv3 |
 | Homepage | <https://github.com/SLASHLogin/ai-limits-plasmoid> |
@@ -70,9 +70,9 @@ Set the file's own version to `1.0.0` too — Plasma's **Get New Widgets**
 compares that field, not the product version, when offering updates.
 
 Paste the disclosure under "Listing text" below into the description. Do not
-add OpenAI's, Anthropic's, or GitHub's logos to the listing artwork itself: the
-bundled icons are covered by the notices in this repository, but Store
-banner artwork is marketing use and a different question.
+add OpenAI's, Anthropic's, GitHub's, or Mistral AI's logos to the listing
+artwork itself: the bundled icons are covered by the notices in this
+repository, but Store banner artwork is marketing use and a different question.
 
 For later versions, bump `Version` in `package/metadata.json`, rebuild with
 `tools/make-store-archive.sh`, and use **Update** on the existing product
@@ -81,9 +81,9 @@ rather than creating a new one, so existing installs are offered the upgrade.
 ## Remaining release checks
 
 - ~~Confirm the bundled marks may be redistributed.~~ No OpenAI brand asset is
-  shipped any more; the Codex glyph is original to this project. The Claude and
-  GitHub icon files are MIT and their marks are excluded from the GPL grant by
-  `TRADEMARKS.md`.
+  shipped any more; the Codex glyph is original to this project. The Claude,
+  GitHub, and Mistral icon files are MIT and their marks are excluded from the
+  GPL grant by `TRADEMARKS.md`.
 - Test installation from the exact archive intended for upload, in a clean user
   account.
 - Test horizontal and vertical panels, light and dark themes, offline mode,
@@ -95,13 +95,13 @@ Disclose in the Store description, because the Store page is where a user
 decides to install:
 
 > Usage is collected locally. The widget reads the sign-ins the Codex, Claude
-> Code, and GitHub CLIs already store on your machine and contacts only the
-> providers themselves. It sends no telemetry and has no server of its own.
+> Code, GitHub, and Vibe CLIs already store on your machine and contacts only
+> the providers themselves. It sends no telemetry and has no server of its own.
 >
 > Codex and Copilot figures come from client endpoints that those vendors do
-> not document as public third-party APIs, and Claude usage comes from the
-> endpoint behind Claude Code's own `/usage`. Any of them may change without
-> notice.
+> not document as public third-party APIs, Claude usage comes from the
+> endpoint behind Claude Code's own `/usage`, and Mistral usage comes from
+> Mistral's billing endpoints. Any of them may change without notice.
 
 The full privacy statement is in the project README.
 
