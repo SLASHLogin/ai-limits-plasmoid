@@ -139,29 +139,36 @@ PlasmoidItem {
     }
 
     function compactValue(provider) {
-        var percentages = [];
+        var entries = [];
         if (provider && provider.windows && typeof provider.windows.length === "number") {
             for (var index = 0; index < provider.windows.length; index++) {
                 var windowPercent = root.remainingPercent(provider.windows[index]);
                 if (windowPercent !== null) {
-                    percentages.push(windowPercent);
+                    entries.push({ percent: windowPercent, label: String(provider.windows[index].label || "") });
                 }
             }
         }
-        if (percentages.length === 0) {
+        if (entries.length === 0) {
             var providerPercent = root.remainingPercent(provider);
             if (providerPercent !== null) {
-                percentages.push(providerPercent);
+                entries.push({ percent: providerPercent, label: "" });
             }
         }
-        if (percentages.length > 0) {
-            if (provider.id === "claude" && percentages.length > 1) {
-                // Claude has one session window plus a weekly window per capped
-                // model. Show the session value and the tightest weekly one, so
-                // an Opus or Sonnet cap cannot hide behind the combined total.
-                var weekly = Math.min.apply(null, percentages.slice(1));
-                return String(Math.round(percentages[0])) + "%/" + String(Math.round(weekly)) + "%";
+        if (entries.length > 0) {
+            // The first window is the session window. Weekly windows are labelled
+            // "7d", including per-model caps such as Claude's "Opus 7d" and Codex's
+            // "Spark 7d". Show the session value and the tightest weekly one, so a
+            // model cap cannot hide behind the combined total.
+            var weekly = [];
+            for (var pick = 1; pick < entries.length; pick++) {
+                if (/7d$/.test(entries[pick].label)) {
+                    weekly.push(entries[pick].percent);
+                }
             }
+            if (weekly.length > 0) {
+                return String(Math.round(entries[0].percent)) + "%/" + String(Math.round(Math.min.apply(null, weekly))) + "%";
+            }
+            var percentages = entries.map(function (entry) { return entry.percent; });
             return String(Math.round(Math.min.apply(null, percentages))) + "%";
         }
         if (provider && typeof provider.detail === "string" && provider.detail.toLowerCase().indexOf("unlimited") !== -1) {
