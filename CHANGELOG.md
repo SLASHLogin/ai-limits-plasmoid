@@ -16,6 +16,8 @@
   page's embedded payload and falls back to the console's `billing.vibeUsage`
   route, forwarding only the `csrftoken` and `ory_session_*` cookies. Session
   cookies expire; the row notes it and the monthly window keeps showing.
+- The panel shows both Mistral windows side by side, as it shows Codex's and
+  Claude's session and weekly values.
 
 ## 1.2.1
 

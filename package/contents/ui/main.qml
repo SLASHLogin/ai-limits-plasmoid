@@ -169,8 +169,15 @@ PlasmoidItem {
             if (weekly.length > 0) {
                 return String(Math.round(entries[0].percent)) + "%/" + String(Math.round(Math.min.apply(null, weekly))) + "%";
             }
-            var percentages = entries.map(function (entry) { return entry.percent; });
-            return String(Math.round(Math.min.apply(null, percentages))) + "%";
+            // With no weekly window, a second window is a separate budget of
+            // the same length — Mistral's Vibe Code plan next to its monthly
+            // allowance. Show both values, as the session/weekly pair does,
+            // rather than only the tighter one.
+            if (entries.length > 1) {
+                var rest = entries.slice(1).map(function (entry) { return entry.percent; });
+                return String(Math.round(entries[0].percent)) + "%/" + String(Math.round(Math.min.apply(null, rest))) + "%";
+            }
+            return String(Math.round(entries[0].percent)) + "%";
         }
         if (provider && typeof provider.detail === "string" && provider.detail.toLowerCase().indexOf("unlimited") !== -1) {
             return "100%";
