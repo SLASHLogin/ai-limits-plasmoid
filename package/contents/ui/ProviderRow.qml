@@ -215,11 +215,11 @@ Item {
         visible: !row.compact && !!row.provider.url
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        width: 54
         height: 28
-        display: QQC2.AbstractButton.TextOnly
+        display: QQC2.AbstractButton.IconOnly
         flat: true
         text: i18n("Usage")
+        icon.name: "globe"
         Accessible.name: "Open " + row.provider.name + " usage website"
         onClicked: Qt.openUrlExternally(row.provider.url)
         QQC2.ToolTip.visible: usageButton.hovered
