@@ -610,7 +610,9 @@ PlasmoidItem {
                 Kirigami.Icon {
                     Layout.preferredWidth: 28
                     Layout.preferredHeight: 28
-                    source: "view-statistics"
+                    // The product mark: the bars over the gauge track, the
+                    // same shapes the store logo and hero carry.
+                    source: Qt.resolvedUrl("../icons/ailimits-symbolic.svg")
                     isMask: true
                     color: Kirigami.Theme.textColor
                     Accessible.name: i18n("AI limits")
