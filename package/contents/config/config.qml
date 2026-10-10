@@ -9,6 +9,7 @@ ConfigModel {
     ConfigCategory {
         name: i18n("General")
         icon: "view-statistics"
-        source: "ui/config/ConfigGeneral.qml"
+        // The source is resolved against contents/ui, not the package root.
+        source: "config/ConfigGeneral.qml"
     }
 }

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: the settings dialog came up empty, or kept whatever page was shown
+  before, instead of the widget's own settings. The General category's source
+  in `config.qml` is resolved against `contents/ui`, so the
+  `ui/config/ConfigGeneral.qml` path pointed at `contents/ui/ui/config/…`,
+  a file that does not exist — Plasma then silently created an empty page.
+  The source is now `config/ConfigGeneral.qml`, the form Plasma's own
+  widgets use.
+
 ## 1.3.1
 
 - Fixed: the Mistral row reported frozen values with false thresholds. A
