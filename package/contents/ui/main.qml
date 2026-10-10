@@ -66,20 +66,30 @@ PlasmoidItem {
         });
         return result;
     }
-    readonly property var orderedProviders: providers.slice().sort(function (a, b) {
-        var aIndex = root.providerOrder[String(a.id || "")];
-        var bIndex = root.providerOrder[String(b.id || "")];
-        if (aIndex === undefined && bIndex === undefined) {
-            return 0;
-        }
-        if (aIndex === undefined) {
-            return 1;
-        }
-        if (bIndex === undefined) {
-            return -1;
-        }
-        return aIndex - bIndex;
-    })
+    // The sort carries the collector's index as a tie-breaker rather than
+    // relying on Array.sort being stable: QML's is not, and an empty pin
+    // would otherwise scramble the rows.
+    readonly property var orderedProviders: {
+        var order = root.providerOrder;
+        return providers.map(function (provider, index) {
+            return { provider: provider, collector: index };
+        }).sort(function (a, b) {
+            var aPin = order[String(a.provider.id || "")];
+            var bPin = order[String(b.provider.id || "")];
+            if (aPin !== undefined && bPin !== undefined && aPin !== bPin) {
+                return aPin - bPin;
+            }
+            if (aPin !== undefined && bPin === undefined) {
+                return -1;
+            }
+            if (aPin === undefined && bPin !== undefined) {
+                return 1;
+            }
+            return a.collector - b.collector;
+        }).map(function (entry) {
+            return entry.provider;
+        });
+    }
 
     property bool loading: false
     property string lastUpdated: ""
