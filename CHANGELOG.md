@@ -2,12 +2,10 @@
 
 ## Unreleased
 
-- New: the popup's header carries the product's own mark — the bars over
-  the gauge track, the same shapes as the store logo and hero — instead
-  of the stock view-statistics icon. The settings page's General entry
-  moves to office-chart-bar, the same ascending bars as a stock icon:
-  ConfigCategory icons resolve only as theme names, so the package's
-  own mark cannot load there.
+- New: the popup's header and the settings page's General entry carry
+  the product's own mark — the bars over the gauge track, the same
+  shapes as the store logo and hero — instead of the stock
+  view-statistics icon.
 - Fixed: the settings page's first option sat flush against the top edge.
   The page root is a KCM.SimpleKCM now, the same as the settings pages of
   Plasma's own widgets, which brings the standard margins — and scrolling,
