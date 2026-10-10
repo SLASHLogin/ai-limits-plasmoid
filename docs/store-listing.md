@@ -33,6 +33,8 @@ a faithful proportional resize — it is not cropped.
    first gallery picture, not the product logo, squeezed into a 160px square.
    A dense screenshot is unreadable there; this one is composed for it.
 2. `screenshots/widget-popup.png` — the detailed popup view.
+3. `screenshots/widget-settings.png` — the settings page: per-provider
+   visibility, the up/down order arrows, and the panel's other options.
 
 ## Tags (5 maximum)
 

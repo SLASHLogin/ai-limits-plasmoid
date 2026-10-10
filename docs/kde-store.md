@@ -38,8 +38,10 @@ kpackagetool6 --type Plasma/Applet --install dist/ai-limits-1.0.0.plasmoid
    bridge is now a fallback rather than the primary path; Claude usage is read
    live from the stored CLI login, so a Store install needs no `PATH` setup.
 5. ~~Add screenshots using sample rather than personal usage data.~~
-   `screenshots/widget-popup.png` is rendered from a sample
-   `~/.config/limit-widget/limits.json`.
+   `screenshots/widget-popup.png` and `screenshots/widget-settings.png`
+   are rendered from `examples/screenshot-payload.json`, a collector
+   output whose texts are the collector's own and whose numbers are
+   samples.
 
 ## Uploading to KDE Store
 

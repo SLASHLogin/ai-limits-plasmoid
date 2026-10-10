@@ -21,6 +21,8 @@ available. Unknown values stay `—`; they are never shown as zero.
 
 ![AI Limits expanded widget](screenshots/widget-popup.png)
 
+![AI Limits settings](screenshots/widget-settings.png)
+
 ## Install
 
 The only dependencies are the normal Plasma 6 runtime and Python 3. The

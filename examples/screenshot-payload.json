@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "fetchedAt": "2026-10-10T18:42:00Z",
+  "providers": [
+    {
+      "id": "codex",
+      "name": "ChatGPT",
+      "shortName": "C",
+      "symbol": "codex-symbolic.svg",
+      "url": "https://chatgpt.com/settings/usage",
+      "state": "ok",
+      "remaining": 62,
+      "limit": 100,
+      "used": 38,
+      "usedPercentage": 38,
+      "unit": "percent",
+      "resetAt": "2026-10-10T21:35:00Z",
+      "windows": [
+        { "label": "5h", "remaining": 62, "limit": 100, "used": 38, "usedPercentage": 38, "unit": "percent", "resetAt": "2026-10-10T21:35:00Z" },
+        { "label": "7d", "remaining": 45, "limit": 100, "used": 55, "usedPercentage": 55, "unit": "percent", "resetAt": "2026-10-12T09:00:00Z" }
+      ],
+      "detail": "plus · 1 reset credits"
+    },
+    {
+      "id": "claude",
+      "name": "Claude Code",
+      "shortName": "A",
+      "symbol": "claude-symbolic.svg",
+      "url": "https://claude.ai/settings/usage",
+      "state": "ok",
+      "remaining": 30,
+      "limit": 100,
+      "used": 70,
+      "usedPercentage": 70,
+      "unit": "percent",
+      "resetAt": "2026-10-10T21:35:00Z",
+      "windows": [
+        { "label": "5h", "remaining": 30, "limit": 100, "used": 70, "usedPercentage": 70, "unit": "percent", "resetAt": "2026-10-10T21:35:00Z" },
+        { "label": "7d", "remaining": 78, "limit": 100, "used": 22, "usedPercentage": 22, "unit": "percent", "resetAt": "2026-10-12T09:00:00Z" }
+      ],
+      "detail": "Claude Pro"
+    },
+    {
+      "id": "copilot",
+      "name": "GitHub Copilot",
+      "shortName": "G",
+      "symbol": "copilot-symbolic.svg",
+      "url": "https://github.com/settings/copilot",
+      "state": "ok",
+      "remaining": 150,
+      "limit": 300,
+      "used": 150,
+      "usedPercentage": 50,
+      "unit": "count",
+      "resetAt": "2026-10-15T09:00:00Z",
+      "windows": [
+        { "label": "Premium", "remaining": 150, "limit": 300, "used": 150, "usedPercentage": 50, "unit": "count", "resetAt": "2026-10-15T09:00:00Z" }
+      ],
+      "detail": "Premium interactions"
+    },
+    {
+      "id": "mistral",
+      "name": "Mistral Vibe",
+      "shortName": "M",
+      "symbol": "mistral-symbolic.svg",
+      "url": "https://admin.mistral.ai/subscriptions",
+      "state": "ok",
+      "remaining": 18,
+      "limit": 25,
+      "used": 7,
+      "usedPercentage": 28,
+      "unit": "count",
+      "resetAt": null,
+      "windows": [
+        { "label": "API", "remaining": 18, "limit": 25, "used": 7, "usedPercentage": 28, "unit": "count", "resetAt": null },
+        { "label": "Vibe Code", "remaining": 128, "limit": 255, "used": 127, "usedPercentage": 50, "unit": "count", "resetAt": null }
+      ],
+      "detail": "Mistral subscription"
+    }
+  ]
+}
