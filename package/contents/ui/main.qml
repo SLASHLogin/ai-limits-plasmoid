@@ -588,7 +588,10 @@ PlasmoidItem {
 
     fullRepresentation: Item {
         id: popup
-        implicitWidth: 382
+        // Wide enough for the longest value a row carries — Mistral's two
+        // counted windows read "API 25.5 / 25.5 · Vibe Code 197.8 / 255 left",
+        // which already elided from the left at the old width.
+        implicitWidth: 470
         // Tall enough for the rows the collector reports by default, so the
         // last row's Usage button is not cut off; further rows scroll.
         implicitHeight: Math.min(root.popupChromeHeight + root.rowsHeight, 480)
