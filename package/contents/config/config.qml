@@ -8,8 +8,11 @@ import org.kde.plasma.configuration
 ConfigModel {
     ConfigCategory {
         name: i18n("General")
-        // The product mark, the same one the popup's header carries.
-        icon: Qt.resolvedUrl("../icons/ailimits-symbolic.svg")
+        // A ConfigCategory icon crosses into the settings dialog as a plain
+        // string, which only resolves as a theme icon name — the package's
+        // own mark cannot load there. This is the closest stock one: the
+        // same ascending bars over a baseline.
+        icon: "office-chart-bar"
         // The source is resolved against contents/ui, not the package root.
         source: "config/ConfigGeneral.qml"
     }
