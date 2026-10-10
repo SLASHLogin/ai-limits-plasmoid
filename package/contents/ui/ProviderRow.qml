@@ -215,9 +215,9 @@ Item {
         visible: !row.compact && !!row.provider.url
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
+        width: 28
         height: 28
         display: QQC2.AbstractButton.IconOnly
-        flat: true
         text: i18n("Usage")
         icon.name: "globe"
         Accessible.name: "Open " + row.provider.name + " usage website"
