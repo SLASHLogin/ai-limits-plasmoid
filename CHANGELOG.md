@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
 
 - New: the popup's header and the settings page's General entry carry
   the product's own mark — the bars over the gauge track, the same
