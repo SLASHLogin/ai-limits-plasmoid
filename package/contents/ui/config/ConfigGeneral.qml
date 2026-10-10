@@ -15,8 +15,10 @@ Kirigami.FormLayout {
     property alias cfg_hideEmptyProviders: hideEmptyProviders.checked
     property alias cfg_showExhaustedReset: showExhaustedReset.checked
     property alias cfg_resetTextFormat: resetTextFormat.currentValue
-    // Not an alias: the checkbox list writes this as a comma-separated string.
+    // Not aliases: the checkbox list and the order buttons write these as
+    // comma-separated strings.
     property string cfg_hiddenProviders: ""
+    property string cfg_providerOrder: ""
     property alias cfg_codexbarPath: codexbarPath.text
 
     // The provider list is whatever the collector last reported, so providers
@@ -53,6 +55,51 @@ Kirigami.FormLayout {
             current.push(id);
         }
         page.cfg_hiddenProviders = current.join(",");
+    }
+
+    // The ids in their pinned order: what the pin lists first, then the ids
+    // it does not mention in the collector's order — so a newly reported
+    // provider lands at the end instead of going missing.
+    readonly property var orderedKnownIds: {
+        var seen = {};
+        var list = [];
+        page.cfg_providerOrder.split(",").forEach(function (id) {
+            var trimmed = id.trim();
+            if (trimmed.length > 0 && !seen[trimmed]) {
+                seen[trimmed] = true;
+                list.push(trimmed);
+            }
+        });
+        page.knownProviders.forEach(function (provider) {
+            if (!seen[provider.id]) {
+                seen[provider.id] = true;
+                list.push(provider.id);
+            }
+        });
+        return list;
+    }
+
+    function providerName(id) {
+        for (var index = 0; index < page.knownProviders.length; index++) {
+            if (page.knownProviders[index].id === id) {
+                return page.knownProviders[index].name;
+            }
+        }
+        return id;
+    }
+
+    // Moving a row writes the whole order, so the arrows always mean what
+    // they show.
+    function moveProvider(id, offset) {
+        var ids = page.orderedKnownIds.slice();
+        var index = ids.indexOf(id);
+        var target = index + offset;
+        if (index === -1 || target < 0 || target >= ids.length) {
+            return;
+        }
+        ids[index] = ids[target];
+        ids[target] = id;
+        page.cfg_providerOrder = ids.join(",");
     }
 
     QQC2.SpinBox {
@@ -110,12 +157,32 @@ Kirigami.FormLayout {
         spacing: 2
 
         Repeater {
-            model: page.knownProviders
-            delegate: QQC2.CheckBox {
+            model: page.orderedKnownIds
+            delegate: RowLayout {
+                id: orderedProvider
                 required property var modelData
-                text: modelData.name
-                checked: !page.isHidden(modelData.id)
-                onToggled: page.setHidden(modelData.id, !checked)
+                required property int index
+                spacing: 0
+
+                QQC2.CheckBox {
+                    text: page.providerName(orderedProvider.modelData)
+                    checked: !page.isHidden(orderedProvider.modelData)
+                    onToggled: page.setHidden(orderedProvider.modelData, !checked)
+                }
+
+                QQC2.ToolButton {
+                    icon.name: "arrow-up"
+                    enabled: orderedProvider.index > 0
+                    onClicked: page.moveProvider(orderedProvider.modelData, -1)
+                    Accessible.name: i18n("Move up")
+                }
+
+                QQC2.ToolButton {
+                    icon.name: "arrow-down"
+                    enabled: orderedProvider.index < page.orderedKnownIds.length - 1
+                    onClicked: page.moveProvider(orderedProvider.modelData, 1)
+                    Accessible.name: i18n("Move down")
+                }
             }
         }
 

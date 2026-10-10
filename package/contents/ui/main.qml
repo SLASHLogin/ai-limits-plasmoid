@@ -53,6 +53,34 @@ PlasmoidItem {
         return !root.hiddenProviders[String(provider.id || "")];
     }
 
+    // The user's pinned provider order, as an id→index lookup. Ids the pin
+    // does not mention keep the collector's order, after the pinned ones.
+    readonly property var providerOrder: {
+        var result = {};
+        var raw = String(Plasmoid.configuration.providerOrder || "");
+        raw.split(",").forEach(function (id, index) {
+            var trimmed = id.trim();
+            if (trimmed.length > 0 && result[trimmed] === undefined) {
+                result[trimmed] = index;
+            }
+        });
+        return result;
+    }
+    readonly property var orderedProviders: providers.slice().sort(function (a, b) {
+        var aIndex = root.providerOrder[String(a.id || "")];
+        var bIndex = root.providerOrder[String(b.id || "")];
+        if (aIndex === undefined && bIndex === undefined) {
+            return 0;
+        }
+        if (aIndex === undefined) {
+            return 1;
+        }
+        if (bIndex === undefined) {
+            return -1;
+        }
+        return aIndex - bIndex;
+    })
+
     property bool loading: false
     property string lastUpdated: ""
     property string errorText: ""
@@ -97,7 +125,7 @@ PlasmoidItem {
         return true;
     }
 
-    readonly property var displayedProviders: providers.filter(function (provider) {
+    readonly property var displayedProviders: orderedProviders.filter(function (provider) {
         if (!root.providerVisible(provider)) {
             return false;
         }
@@ -109,7 +137,7 @@ PlasmoidItem {
     // the popup but kept out of the panel. There can be dozens of them, and
     // the panel representation grows with every row it draws, so including
     // them would push the rest of the panel off a normal-width screen.
-    readonly property var panelProviders: providers.filter(function (provider) {
+    readonly property var panelProviders: orderedProviders.filter(function (provider) {
         if (!root.providerVisible(provider) || String(provider.id || "").indexOf("codexbar:") === 0) {
             return false;
         }
@@ -127,7 +155,7 @@ PlasmoidItem {
         }
         return String(known) + " / " + String(providers.length) + " available";
     }
-    readonly property string compactSummary: providers.map(function (provider) {
+    readonly property string compactSummary: orderedProviders.map(function (provider) {
         // As in the panel: an exhausted window makes the percentages
         // unusable, so the tooltip shows the time until the reset alone.
         var reset = root.panelReset(provider);

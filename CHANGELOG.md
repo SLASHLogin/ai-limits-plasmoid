@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- New: providers can be reordered. Each row in the settings' provider list
+  carries an up and a down button, and the saved order applies to the panel,
+  the popup, and the tooltip alike. A newly supported provider appears at
+  the end until it is moved.
 - New: "Hide providers with no usage yet" now applies to the panel alone and
   also treats an untouched allowance as no usage — a provider whose every
   window sits at its full 100% hides alongside signed-out and allowance-less

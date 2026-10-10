@@ -35,6 +35,12 @@
         <entry name="hiddenProviders" type="String">
             <default></default>
         </entry>
+        <!-- Comma-separated provider ids, first to last. Ids the list does not
+             mention keep the collector's order after the listed ones, so a
+             newly supported provider appears instead of going missing. -->
+        <entry name="providerOrder" type="String">
+            <default></default>
+        </entry>
         <!-- Absolute path to the CodexBar CLI, for installs that are not on
              PATH. Empty means "look for codexbar on PATH". -->
         <entry name="codexbarPath" type="String">
