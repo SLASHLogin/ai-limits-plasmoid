@@ -11,6 +11,16 @@
         <entry name="showUnsupported" type="Bool">
             <default>true</default>
         </entry>
+        <!-- Hide providers that have nothing to show: no live sign-in, or a
+             plan without any allowance. Transient error rows stay visible. -->
+        <entry name="hideEmptyProviders" type="Bool">
+            <default>false</default>
+        </entry>
+        <!-- Show the closest upcoming reset when a rolling session/weekly
+             window is exhausted. Monthly allowances are excluded. -->
+        <entry name="showExhaustedReset" type="Bool">
+            <default>true</default>
+        </entry>
         <!-- Comma-separated provider ids to hide. Hiding rather than choosing
              what to show means a newly supported provider appears by default
              instead of silently missing from an existing configuration. -->

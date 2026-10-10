@@ -12,6 +12,9 @@ Item {
 
     required property var provider
     property bool compact: false
+    // Set by the applet when an exhausted session/weekly window should name
+    // its closest reset, e.g. "5h resets 14:30". Empty means no hint.
+    property string resetHint: ""
 
     readonly property var windows: provider && provider.windows && typeof provider.windows.length === "number"
         ? provider.windows
@@ -126,10 +129,9 @@ Item {
             spacing: 8
 
             QQC2.Label {
-                Layout.fillWidth: true
-                // Without a floor the value label, which has no width limit,
-                // takes the whole row when a provider reports three or more
-                // windows and elides the name away to nothing.
+                // The name keeps its preferred width, capped so a long vendor
+                // name elides instead of pushing the value out of the row.
+                Layout.preferredWidth: Math.min(implicitWidth, 110)
                 Layout.minimumWidth: Math.min(implicitWidth, 72)
                 text: row.provider.name || "AI provider"
                 font.bold: !row.compact
@@ -139,6 +141,11 @@ Item {
 
             QQC2.Label {
                 visible: row.hasValue
+                // The value fills whatever width is left and elides, so a
+                // long multi-window summary can never overflow the row and
+                // paint over the Usage button beside it.
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
                 text: {
                     if (!row.hasValue) {
                         return qsTr("—");
@@ -146,7 +153,7 @@ Item {
                     var body = row.windows.length > 1
                         ? row.windowSummary()
                         : row.windowValue(row.windows.length === 1 ? row.windows[0] : row.provider);
-                    return body + " " + i18n("left");
+                    return row.resetHint ? body + " · " + row.resetHint : body + " " + i18n("left");
                 }
                 font.bold: true
                 font.pixelSize: row.windows.length > 1 ? 11 : (row.compact ? 11 : 13)

@@ -12,6 +12,8 @@ Kirigami.FormLayout {
 
     property alias cfg_refreshInterval: refreshInterval.value
     property alias cfg_showUnsupported: showUnsupported.checked
+    property alias cfg_hideEmptyProviders: hideEmptyProviders.checked
+    property alias cfg_showExhaustedReset: showExhaustedReset.checked
     // Not an alias: the checkbox list writes this as a comma-separated string.
     property string cfg_hiddenProviders: ""
     property alias cfg_codexbarPath: codexbarPath.text
@@ -72,6 +74,19 @@ Kirigami.FormLayout {
         id: showUnsupported
         Kirigami.FormData.label: i18n("Providers:")
         text: i18n("Show unavailable providers")
+        checked: true
+    }
+
+    QQC2.CheckBox {
+        id: hideEmptyProviders
+        Kirigami.FormData.label: i18n("Providers:")
+        text: i18n("Hide providers with no usage yet")
+    }
+
+    QQC2.CheckBox {
+        id: showExhaustedReset
+        Kirigami.FormData.label: i18n("Display:")
+        text: i18n("Show the closest reset when a 5h/weekly window is exhausted")
         checked: true
     }
 

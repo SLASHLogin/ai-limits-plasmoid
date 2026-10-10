@@ -17,10 +17,27 @@
       "detail": "Premium requests"
     },
     "mistral": {
-      "remaining": 17.25,
-      "limit": 27,
-      "resetAt": "2026-11-01T00:00:00Z",
-      "detail": "Mistral Pro · €12.5 credits"
+      "windows": [
+        {
+          "id": "api",
+          "label": "API",
+          "unit": "count",
+          "remaining": 25.5,
+          "limit": 25.5,
+          "used": 0,
+          "resetAt": "2026-11-01T00:00:00Z"
+        },
+        {
+          "id": "vibe",
+          "label": "Vibe Code",
+          "unit": "count",
+          "remaining": 234.1,
+          "limit": 255,
+          "used": 20.9,
+          "resetAt": "2026-11-01T00:00:00Z"
+        }
+      ],
+      "detail": "Mistral subscription"
     }
   }
 }

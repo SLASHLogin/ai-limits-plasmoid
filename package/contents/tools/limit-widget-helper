@@ -4,13 +4,12 @@
 """Collect and normalize AI subscription limits for the Plasma widget.
 
 The helper uses the same local sign-ins as the vendor CLIs: Codex's OAuth file,
-GitHub CLI's credential store, Claude Code's OAuth login, which is read
-through the usage endpoint behind Claude Code's own /usage, and the Vibe CLI's
-stored API key, read through Mistral's billing endpoints. The Vibe Code
-monthly-plan window is only exposed to a browser session, so it is read from
-an opt-in Cookie header pasted into the widget's own configuration. The
-status-line bridge is only a fallback for Claude logins this helper cannot
-read, and its cached values are reported as stale rather than refreshed.
+GitHub CLI's credential store, and Claude Code's OAuth login, which is read
+through the usage endpoint behind Claude Code's own /usage. Mistral exposes a
+plan's allowances only to a browser session, so they are read from an opt-in
+Cookie header pasted into the widget's own configuration. The status-line
+bridge is only a fallback for Claude logins this helper cannot read, and its
+cached values are reported as stale rather than refreshed.
 
 It ships inside the widget package so a KDE Store install needs nothing on
 PATH, and it is also installed to ~/.local/bin by CMake for command-line use.
@@ -55,12 +54,9 @@ CLAUDE_WINDOWS = (
     ("seven_day_opus", "Opus 7d"),
     ("seven_day_sonnet", "Sonnet 7d"),
 )
-MISTRAL_API_BASE = "https://api.mistral.ai/v1"
-MISTRAL_SUBSCRIPTION_URL = MISTRAL_API_BASE + "/billing/subscription"
-MISTRAL_USAGE_URL = MISTRAL_API_BASE + "/billing/usage"
-# The Vibe Code monthly-plan window is only exposed to a browser session:
-# the Admin subscription page (an HTML page with an embedded React Flight
-# budget payload) and, as a fallback, the console's billing.vibeUsage route.
+# Mistral exposes a plan's allowances only to a browser session: the Admin
+# subscription page (an HTML page with an embedded React Flight budget
+# payload) and, as a fallback, the console's billing.vibeUsage route.
 MISTRAL_ADMIN_BASE = "https://admin.mistral.ai"
 MISTRAL_SUBSCRIPTION_PAGE_URL = MISTRAL_ADMIN_BASE + "/subscription"
 MISTRAL_VIBE_USAGE_URL = (
@@ -108,7 +104,7 @@ PROVIDERS = (
         "shortName": "M",
         "symbol": "mistral-symbolic.svg",
         "url": "https://admin.mistral.ai/subscriptions",
-        "defaultDetail": "Run vibe --setup or set MISTRAL_API_KEY to read usage",
+        "defaultDetail": "Add a Mistral cookie in providers.json to read usage",
     },
 )
 
@@ -576,42 +572,6 @@ def copilot_source() -> dict[str, Any]:
     }
 
 
-def vibe_env_path() -> Path:
-    base = os.environ.get("VIBE_HOME")
-    return (Path(base) if base else Path.home() / ".vibe") / ".env"
-
-
-def mistral_api_key() -> str | None:
-    """The credential in the order the Vibe CLI itself resolves it.
-
-    Vibe reads MISTRAL_API_KEY from the environment first and falls back to
-    the ~/.vibe/.env file its setup flow writes (VIBE_HOME overrides the
-    directory). Vibe's other store is the OS keyring, which needs a helper
-    library this collector does not depend on; a key kept only there is
-    reached by exporting MISTRAL_API_KEY.
-    """
-    env_key = os.environ.get("MISTRAL_API_KEY")
-    if isinstance(env_key, str) and env_key.strip():
-        return env_key.strip()
-    try:
-        text = vibe_env_path().read_text(encoding="utf-8")
-    except OSError:
-        return None
-    for line in text.splitlines():
-        line = line.strip()
-        if line.startswith("export "):
-            line = line[len("export "):].strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        name, _, value = line.partition("=")
-        if name.strip() != "MISTRAL_API_KEY":
-            continue
-        # The setup flow has been seen writing the value single-quoted.
-        value = value.strip().strip("'").strip('"').strip()
-        return value or None
-    return None
-
-
 def mistral_timestamp(value: Any) -> str | None:
     """Vendor timestamps arrive as ISO strings (sometimes over-precise) or epochs."""
     if isinstance(value, bool):
@@ -629,100 +589,11 @@ def mistral_timestamp(value: Any) -> str | None:
         return value
 
 
-def mistral_billing_source(api_key: str) -> dict[str, Any]:
-    """Read the subscription's monthly allowance with the Vibe CLI's own key.
-
-    Mistral plans bundle one monthly allowance that is shared across Studio,
-    the API, and Vibe Code, so the window covers both. The billing endpoints
-    answer a La Plateforme API key — the same credential `vibe --setup` stores
-    — so no browser session is needed for this window.
-    """
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Accept": "application/json",
-        "User-Agent": USER_AGENT,
-    }
-    subscription, _, status, error = http_json(MISTRAL_SUBSCRIPTION_URL, headers)
-    if error:
-        return {"state": "error", "detail": "Mistral subscription request failed"}
-    if status == 429:
-        return {"state": "rateLimited", "detail": "Mistral billing endpoint is rate-limited"}
-    if status in {401, 403}:
-        return {"state": "unauthenticated", "detail": "Mistral rejected the key; run vibe --setup again"}
-    if not 200 <= status < 300 or not isinstance(subscription, dict):
-        return {"state": "error", "detail": f"Mistral subscription request failed ({status})"}
-
-    plan = subscription.get("plan")
-    plan_name = plan.strip().capitalize() if isinstance(plan, str) and plan.strip() else ""
-    budget = finite_number(subscription.get("monthly_budget"))
-    credits = finite_number(subscription.get("credit_balance"))
-
-    detail_parts = []
-    if plan_name:
-        detail_parts.append(f"Mistral {plan_name}")
-    if credits is not None:
-        detail_parts.append(f"€{credits:g} credits")
-    detail = " · ".join(detail_parts) or "Mistral subscription"
-
-    if budget is None or budget <= 0:
-        # A pay-as-you-go account carries a credit balance rather than a
-        # monthly allowance; there is no limit to show a share of.
-        return {"state": "ok", "detail": detail}
-
-    now = datetime.now(timezone.utc)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    usage, _, usage_status, usage_error = http_json(
-        MISTRAL_USAGE_URL + "?" + urlencode({
-            "start_date": month_start.strftime("%Y-%m-%d"),
-            "end_date": now.strftime("%Y-%m-%d"),
-        }),
-        headers,
-    )
-    if usage_error:
-        return {"state": "error", "detail": "Mistral usage request failed"}
-    if usage_status == 429:
-        return {"state": "rateLimited", "detail": "Mistral billing endpoint is rate-limited"}
-    if not 200 <= usage_status < 300 or not isinstance(usage, dict):
-        return {"state": "error", "detail": f"Mistral usage request failed ({usage_status})"}
-
-    spend = finite_number(usage.get("total_cost"))
-    if spend is None and isinstance(usage.get("data"), list):
-        # An empty month is a genuine zero; a missing total is not.
-        spend = 0.0
-        for row in usage["data"]:
-            value = finite_number(row.get("total_cost")) if isinstance(row, dict) else None
-            if value is not None:
-                spend += value
-    if spend is None:
-        return {"state": "unknown", "detail": detail}
-
-    # The billing period is the calendar month and resets at midnight UTC on
-    # the first. Spend past the allowance is pay-as-you-go, so remaining is
-    # floored at zero rather than reported negative.
-    if now.month == 12:
-        reset_at = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-    else:
-        reset_at = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
-    return {
-        "state": "ok",
-        "windows": [{
-            "id": "monthly",
-            "label": "Month",
-            "unit": "count",
-            "remaining": max(0, budget - spend),
-            "limit": budget,
-            "used": spend,
-            "resetAt": reset_at.isoformat(),
-        }],
-        "detail": detail,
-    }
-
-
 def mistral_cookie() -> str | None:
     """The Admin-console session cookie, pasted into providers.json.
 
-    The Vibe Code monthly-plan window is only exposed to a browser session,
-    and browser cookie import is unavailable on Linux, so the user pastes the
+    Mistral's plan allowances are only exposed to a browser session, and
+    browser cookie import is unavailable on Linux, so the user pastes the
     Cookie header from admin.mistral.ai into
     {"providers": {"mistral": {"cookie": "..."}}} — the same manual mode
     CodexBar uses. Keep the file 0600: it holds a session credential.
@@ -962,23 +833,28 @@ def mistral_vibe_usage_fallback(pairs: dict[str, str]) -> dict[str, Any] | None:
         return None
     return {
         "id": "vibe",
-        "label": "Vibe",
+        "label": "Vibe Code",
         "unit": "percent",
         "usedPercentage": percentage,
         "resetAt": mistral_timestamp(inner.get("reset_at")),
     }
 
 
-def mistral_vibe_plan(cookie: str) -> dict[str, Any]:
-    """The Vibe Code monthly-plan window, read with a browser session.
+def mistral_console_windows(cookie: str) -> dict[str, Any]:
+    """The plan's monthly allowances, read with a browser session.
 
-    Returns {"window": ... | None, "note": ... | None, "state": ...}. The note
+    The Admin subscription page carries both allowances a plan includes —
+    the API allowance and the Vibe Code allowance — as an api_budget /
+    vibe_budget pair. The console's billing.vibeUsage route answers a Vibe
+    percentage only and stands in when the page carries no Vibe budget.
+
+    Returns {"windows": [...], "note": ... | None, "state": ...}. The note
     explains a configured-but-failing session; the state only matters when no
     window was produced.
     """
     pairs = cookie_pairs(cookie)
     if not any(name.startswith("ory_session_") for name in pairs):
-        return {"window": None, "note": "Vibe plan needs an ory_session cookie", "state": "error"}
+        return {"windows": [], "note": "Mistral needs an ory_session cookie", "state": "error"}
     html, status, error = http_text(MISTRAL_SUBSCRIPTION_PAGE_URL, {
         "Accept": "text/html",
         "Accept-Language": "en-US,en;q=0.9",
@@ -987,64 +863,64 @@ def mistral_vibe_plan(cookie: str) -> dict[str, Any]:
         "User-Agent": USER_AGENT,
     })
     if error:
-        return {"window": None, "note": "Vibe plan request failed", "state": "error"}
+        return {"windows": [], "note": "Mistral plan request failed", "state": "error"}
     if status in {401, 403}:
-        return {"window": None, "note": "Vibe session expired; paste a fresh cookie", "state": "unauthenticated"}
+        return {"windows": [], "note": "Mistral session expired; paste a fresh cookie", "state": "unauthenticated"}
     if status != 200 or html is None:
-        return {"window": None, "note": "Vibe plan unavailable", "state": "error"}
+        return {"windows": [], "note": "Mistral plan unavailable", "state": "error"}
 
+    windows: list[dict[str, Any]] = []
     budgets = parse_subscription_budgets(html)
-    budget = budgets.get("vibe") if budgets else None
-    if budget is None:
+    api = budgets.get("api") if budgets else None
+    if api is not None:
+        windows.append({
+            "id": "api",
+            "label": "API",
+            "unit": "count",
+            "remaining": api["remaining"],
+            "limit": api["limit"],
+            "used": api["used"],
+            "resetAt": api["resetAt"],
+        })
+    vibe = budgets.get("vibe") if budgets else None
+    if vibe is None:
         # The console route answers a percentage only, where the page's
         # vibe_budget carries the EUR allowance.
-        budget = mistral_vibe_usage_fallback(pairs)
+        vibe = mistral_vibe_usage_fallback(pairs)
     else:
-        budget = {
+        vibe = {
             "id": "vibe",
-            "label": "Vibe",
+            "label": "Vibe Code",
             "unit": "count",
-            "remaining": budget["remaining"],
-            "limit": budget["limit"],
-            "used": budget["used"],
-            "resetAt": budget["resetAt"],
+            "remaining": vibe["remaining"],
+            "limit": vibe["limit"],
+            "used": vibe["used"],
+            "resetAt": vibe["resetAt"],
         }
-    if budget is None:
-        # A plan without a Vibe budget is a legitimate absence, not an error.
-        return {"window": None, "note": None, "state": "ok"}
-    return {"window": budget, "note": None, "state": "ok"}
+    if vibe is not None:
+        windows.append(vibe)
+    if not windows:
+        # A plan without an allowance is a legitimate absence, not an error.
+        return {"windows": [], "note": None, "state": "ok"}
+    return {"windows": windows, "note": None, "state": "ok"}
 
 
 def mistral_source() -> dict[str, Any]:
-    """Combine the API-key allowance with the browser-session Vibe plan."""
-    api_key = mistral_api_key()
+    """The plan's monthly allowances, read through a browser session.
+
+    Mistral exposes the allowances a plan includes only to an Admin-console
+    browser session; there is no API-key billing route, so the opt-in cookie
+    is the credential.
+    """
     cookie = mistral_cookie()
-    if not api_key and not cookie:
+    if not cookie:
         return {"state": "unauthenticated",
-                "detail": "Run vibe --setup or add a Mistral cookie in providers.json"}
-
-    billing = mistral_billing_source(api_key) if api_key else None
-    vibe = mistral_vibe_plan(cookie) if cookie else None
-
-    windows: list[dict[str, Any]] = []
-    detail = ""
-    if billing is not None:
-        windows.extend(billing.get("windows") or [])
-        detail = billing.get("detail") or ""
-    if vibe is not None and vibe.get("window"):
-        windows.append(vibe["window"])
-    if vibe is not None and vibe.get("note"):
-        detail = f"{detail} · {vibe['note']}" if detail else vibe["note"]
-
-    if windows or (billing is not None and billing.get("state") == "ok"):
-        result = {"state": "ok", "detail": detail or "Mistral subscription"}
-        if windows:
-            result["windows"] = windows
-        return result
-    if billing is not None:
-        return billing
-    if vibe is not None:
-        return {"state": vibe["state"], "detail": vibe["note"] or "Mistral returned no allowance"}
+                "detail": "Add a Mistral cookie in providers.json to read usage"}
+    console = mistral_console_windows(cookie)
+    if console["windows"]:
+        return {"state": "ok", "windows": console["windows"], "detail": "Mistral subscription"}
+    if console["note"]:
+        return {"state": console["state"], "detail": console["note"]}
     return {"state": "unknown", "detail": "Mistral returned no allowance"}
 
 
@@ -1460,10 +1336,14 @@ def snapshot() -> dict[str, Any]:
 
         if isinstance(configured_provider, dict) and "command" in configured_provider:
             raw, error = run_source(configured_provider["command"])
-        elif provider_id in saved:
-            raw = saved[provider_id]
         else:
+            error = None
             raw = auto_source(provider_id)
+            if raw is None or (raw.get("state") == "unauthenticated" and provider_id in saved):
+                # A saved snapshot is the credential-free source: it is read
+                # only when no live sign-in exists, never to shadow one with
+                # frozen values.
+                raw = saved.get(provider_id)
 
         if error:
             raw = {"state": "error", "detail": error}

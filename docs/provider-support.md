@@ -7,10 +7,10 @@ five-hour window plus a seven-day window where available.
 
 | Provider | Automatic source | Values shown | Caveat |
 | --- | --- | --- | --- |
-| Codex / ChatGPT | `~/.codex/auth.json` / `$CODEX_HOME`, then `GET https://chatgpt.com/backend-api/wham/usage` | 5h, 7d, and Codex Spark windows when returned | This is a Codex client endpoint, not a stable public third-party API. |
+| ChatGPT | `~/.codex/auth.json` / `$CODEX_HOME`, then `GET https://chatgpt.com/backend-api/wham/usage` | 5h, 7d, and Codex Spark windows when returned | This is a Codex client endpoint, not a stable public third-party API. |
 | Claude Code | `~/.claude/.credentials.json` (or `$CLAUDE_CONFIG_DIR`), then `GET https://api.anthropic.com/api/oauth/usage` | 5h and 7d percentage remaining, plus per-model weekly windows and reset times | This is the endpoint behind Claude Code's own `/usage`, not a documented public API. Falls back to the status-line cache, labelled stale. |
 | GitHub Copilot | `gh api copilot_internal/user`, using GitHub CLI's credential store | Premium-interaction remaining / entitlement and monthly reset | `copilot_internal/user` is used by current clients but is not documented as a public REST endpoint. |
-| Mistral Vibe | `MISTRAL_API_KEY`, then `~/.vibe/.env` (or `$VIBE_HOME/.env`), then `GET https://api.mistral.ai/v1/billing/subscription` and `/v1/billing/usage`; the Vibe Code monthly-plan window is opt-in via a pasted Cookie header in `providers.json`, then `GET https://admin.mistral.ai/subscription` | Monthly allowance remaining / budget in EUR, with plan and credit balance in the row detail; the Vibe Code monthly plan as a second window | The billing endpoints are undocumented client endpoints and need a key with billing scope. The Vibe Code plan window answers a browser session only; the pasted cookie expires. |
+| Mistral Vibe | Opt-in Cookie header in `providers.json`, then `GET https://admin.mistral.ai/subscription`, with the console's `billing.vibeUsage` route as fallback | Both monthly allowances a plan includes — API and Vibe Code — remaining / budget in EUR | The allowances answer a browser session only; the pasted cookie expires. |
 
 Official usage pages remain available from each popup row:
 
@@ -75,47 +75,11 @@ an elapsed reset is not evidence that nothing was consumed since.
 
 ## Mistral Vibe
 
-The Vibe CLI needs a Mistral API key to call hosted models, and its setup flow
-saves that key to `~/.vibe/.env` (or `$VIBE_HOME/.env`); the `MISTRAL_API_KEY`
-environment variable takes precedence over the file. The helper reads the key
-in that same order and presents it to Mistral's billing endpoints, so a
-subscription user's allowance is read with the login the CLI already stores —
-no browser session is involved.
-
-Two requests are made, both to `https://api.mistral.ai/v1` with the key as a
-bearer token:
-
-- `GET /billing/subscription` returns the plan name, the monthly budget cap,
-  and the credit balance.
-- `GET /billing/usage?start_date=<first of month>&end_date=<today>` returns
-  the month-to-date spend as `total_cost`.
-
-Mistral plans bundle one monthly allowance that is shared across Studio, the
-API, and Vibe Code, so a single monthly window covers both the Vibe and the API
-allowance under a subscription. The window is a counted one in EUR — Mistral
-bills in EUR — labelled `Month`, with `remaining = monthly_budget - spend`
-floored at zero (spend past the allowance is pay-as-you-go) and a reset at
-midnight UTC on the first of the next month, matching the calendar-month
-billing period. The plan name and credit balance appear in the row's detail
-line, the same way Codex shows reset credits.
-
-A pay-as-you-go account has a credit balance rather than a monthly budget;
-there is then no limit to show a share of, so the row reports the balance in
-its detail and no window rather than inventing a total. A key kept only in
-Vibe's OS keyring is not read — the helper has no keyring dependency — so
-export `MISTRAL_API_KEY` for that setup.
-
-The billing endpoints are not documented as a public API and the key needs
-billing scope; if Mistral narrows either, the row degrades to an explicit
-state rather than a made-up number.
-
-### Vibe Code monthly-plan window
-
-The separate Vibe Code monthly-plan window — the one the Admin console shows
-next to the included API allowance — is embedded in the `admin.mistral.ai`
-subscription page and answers a browser session rather than an API key. The
-widget reads it only when the user opts in by pasting the `Cookie` header from
-<https://admin.mistral.ai/subscription> into
+Mistral exposes the allowances a plan includes — the API allowance and the
+Vibe Code allowance — only to a browser session on the Admin console; there
+is no API-key billing route. The widget therefore reads both from the
+`admin.mistral.ai` subscription page, and only when the user opts in by
+pasting the `Cookie` header from <https://admin.mistral.ai/subscription> into
 `~/.config/limit-widget/providers.json`:
 
 ```json
@@ -129,20 +93,24 @@ A leading `Cookie:` prefix is stripped. The header must contain an
 configured and makes no request.
 
 With a session, the helper requests the subscription page and extracts the
-`budget.vibe_budget` record (`usage_percentage`, `initial_budget`,
-`currency`, `reset_at`) from the page's embedded React Flight payload. The
-amounts are derived the way CodexBar derives them: `used = initial_budget ×
-usage_percentage / 100`, floored at zero for remaining. The window appears as
-a second row labelled `Vibe`, in EUR like the monthly one, and the panel
-shows the tighter of the two.
+`budget.api_budget` / `budget.vibe_budget` pair (`usage_percentage`,
+`initial_budget`, `currency`, `reset_at`) from the page's embedded React
+Flight payload. The amounts are derived the way CodexBar derives them:
+`used = initial_budget × usage_percentage / 100`, floored at zero for
+remaining. Each allowance becomes a counted EUR window labelled `API` and
+`Vibe Code`, and the panel shows both, as it shows Codex's and
+Claude's session and weekly values.
 
 When the page carries no Vibe budget, the helper falls back to the console's
 `billing.vibeUsage` tRPC route, forwarding only the `csrftoken` and
 `ory_session_*` cookies plus the `X-CSRFToken` header — every other
 `admin.mistral.ai` cookie stays origin-bound. That route answers a
-percentage only, so the window then renders as a percentage rather than an
-amount. A plan without a Vibe budget is a legitimate absence and produces no
-window.
+percentage only, so the Vibe window then renders as a percentage rather than
+an amount. A plan without an allowance is a legitimate absence and produces
+no window.
+
+The session expires; the row then notes it and asks for a fresh cookie
+rather than showing a stale number.
 
 Session cookies expire. A rejected session is reported as "Vibe session
 expired; paste a fresh cookie" in the row's detail, and the API-key monthly

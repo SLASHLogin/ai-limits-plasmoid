@@ -47,7 +47,7 @@ is already Plasma 6 Applets, so they would spend slots on reach you have.
 ## Description
 
 ```
-AI subscription usage limits in a monochrome panel widget: Codex/ChatGPT,
+AI subscription usage limits in a monochrome panel widget: ChatGPT,
 Claude Code, GitHub Copilot, and Mistral Vibe in one view.
 
 Install: download the .plasmoid, then
@@ -62,8 +62,8 @@ directly. No telemetry, no server of its own. Unknown values stay "-", never
 zero.
 
 Claude usage is read live from the endpoint behind Claude Code's /usage, so
-nothing needs to be running. Mistral's monthly allowance is read from the
-billing endpoints with the API key the Vibe CLI stores.
+nothing needs to be running. Mistral's monthly allowances are read from the
+Admin console with a pasted session cookie.
 
 Optional: install the CodexBar CLI and the widget also shows the providers it
 reports - Cursor, Gemini, Grok, OpenRouter and more.

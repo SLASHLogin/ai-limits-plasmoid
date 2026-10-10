@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.3.1
+
+- Fixed: the Mistral row reported frozen values with false thresholds. A
+  `limits.json` snapshot entry shadowed the live collector forever; a snapshot
+  is now the fallback only when a provider has no live sign-in.
+- Fixed: Mistral values are read from the Admin console's subscription page
+  with the opt-in pasted cookie — the only place Mistral exposes a plan's
+  allowances. Both allowances the page carries are shown as counted EUR
+  windows: the included **API** allowance and the **Vibe Code** allowance.
+  The `api.mistral.ai/v1/billing/*` endpoints the 1.3.0 collector called do
+  not exist (they answer 404), so the API-key path never produced a value and
+  is removed; the Vibe CLI's key is no longer consulted.
+- Fixed: the popup's long multi-window value label overflowed its row and
+  painted over the Usage button, and the popup was too short for the rows it
+  lists, cutting the last row's Usage button off. Values now elide within
+  their row, and the popup sizes itself to the rows it shows (further rows
+  scroll). The horizontal scrollbar is off: the rows' width is bound to the
+  popup's width, so it could never scroll.
+- New: a settings toggle hides providers with no usage yet — no sign-in, or a
+  plan without an allowance. Transient error rows stay visible.
+- New: a settings toggle (on by default) shows the closest reset time when a
+  rolling 5h/weekly window runs out, in the panel and the popup. Monthly
+  allowances — Mistral's EUR windows and Copilot's premium interactions — are
+  excluded, since their rows already carry their reset time.
+
 ## 1.3.0
 
 - New: Mistral Vibe support. The collector reuses the API key the Vibe CLI

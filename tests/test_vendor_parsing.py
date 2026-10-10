@@ -18,7 +18,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -207,149 +206,15 @@ class VendorParsingTest(unittest.TestCase):
 
     # --- Mistral ---------------------------------------------------------
 
-    def stub_mistral_http(self, subscription=None, usage=None, sub_status=200, usage_status=200):
-        """Answer both billing endpoints and record what was asked of them."""
+    def stub_mistral_web(self, cookie=None, page=None, page_status=200,
+                         fallback=None, fallback_status=200):
+        """Stub the browser-session Admin page and the console fallback route."""
         h = self.helper
-        h.mistral_api_key = lambda: "not-a-real-mistral-key"
-        seen = {}
-
-        def fake_request(url, headers, *a, **k):
-            seen["authorization"] = headers.get("Authorization")
-            if url.startswith(h.MISTRAL_SUBSCRIPTION_URL):
-                return subscription, {}, sub_status, None
-            if url.startswith(h.MISTRAL_USAGE_URL):
-                seen["usage_url"] = url
-                return usage, {}, usage_status, None
-            raise AssertionError("unexpected request to " + url)
-
-        h.http_json = fake_request
-        return seen
-
-    def test_mistral_payload_becomes_a_monthly_window(self):
-        h = self.helper
-        seen = self.stub_mistral_http(fixture("mistral-subscription.json"),
-                                      fixture("mistral-usage.json"))
-
-        record = h.mistral_source()
-        self.assertEqual(record["state"], "ok")
-        window = record["windows"][0]
-        self.assertEqual(window["id"], "monthly")
-        self.assertEqual(window["label"], "Month")
-        self.assertEqual(window["unit"], "count")
-        # 9.75 of the 27 EUR allowance spent leaves 17.25.
-        self.assertAlmostEqual(window["limit"], 27.0)
-        self.assertAlmostEqual(window["used"], 9.75)
-        self.assertAlmostEqual(window["remaining"], 17.25)
-        self.assertEqual(seen["authorization"], "Bearer not-a-real-mistral-key")
-        self.assertEqual(record["detail"], "Mistral Pro · €12.5 credits")
-
-        # The spend is read for the current calendar month.
-        query = dict(part.split("=", 1) for part in seen["usage_url"].split("?", 1)[1].split("&"))
-        now = datetime.now(timezone.utc)
-        self.assertEqual(query["start_date"], now.strftime("%Y-%m-01"))
-        self.assertEqual(query["end_date"], now.strftime("%Y-%m-%d"))
-
-        # The allowance resets at midnight UTC on the first of next month.
-        reset = datetime.fromisoformat(window["resetAt"])
-        self.assertEqual((reset.day, reset.hour, reset.minute, reset.second), (1, 0, 0, 0))
-        self.assertEqual(reset.utcoffset(), timezone.utc.utcoffset(None))
-        if now.month == 12:
-            self.assertEqual((reset.year, reset.month), (now.year + 1, 1))
-        else:
-            self.assertEqual((reset.year, reset.month), (now.year, now.month + 1))
-
-    def test_mistral_spend_falls_back_to_daily_rows(self):
-        """A payload without a top-level total still sums its rows."""
-        h = self.helper
-        usage = fixture("mistral-usage.json")
-        del usage["total_cost"]
-        self.stub_mistral_http(fixture("mistral-subscription.json"), usage)
-
-        record = h.mistral_source()
-        self.assertEqual(record["state"], "ok")
-        self.assertAlmostEqual(record["windows"][0]["used"], 9.75)
-
-    def test_mistral_missing_spend_is_unknown_not_zero(self):
-        h = self.helper
-        self.stub_mistral_http(fixture("mistral-subscription.json"), {"object": "list"})
-
-        record = h.mistral_source()
-        self.assertEqual(record["state"], "unknown")
-        self.assertNotIn("windows", record)
-
-    def test_mistral_spend_past_the_allowance_is_zero_not_negative(self):
-        """Pay-as-you-go usage beyond the allowance floors remaining at zero."""
-        h = self.helper
-        self.stub_mistral_http(fixture("mistral-subscription.json"),
-                               {"object": "list", "data": [], "total_cost": 40.0})
-
-        record = h.mistral_source()
-        self.assertEqual(record["state"], "ok")
-        window = record["windows"][0]
-        self.assertEqual(window["remaining"], 0)
-        self.assertAlmostEqual(window["used"], 40.0)
-
-    def test_mistral_account_without_a_budget_shows_no_window(self):
-        """A pay-as-you-go key has a credit balance, not a monthly allowance."""
-        h = self.helper
-        seen = self.stub_mistral_http({"plan": "scale", "monthly_budget": None, "credit_balance": 30.0})
-
-        record = h.mistral_source()
-        self.assertEqual(record["state"], "ok")
-        self.assertNotIn("windows", record)
-        self.assertEqual(record["detail"], "Mistral Scale · €30 credits")
-        # No allowance means no spend request either.
-        self.assertNotIn("usage_url", seen)
-
-    def test_mistral_missing_key_is_unauthenticated(self):
-        h = self.helper
-        h.mistral_api_key = lambda: None
-        h.http_json = lambda *a, **k: (_ for _ in ()).throw(AssertionError("no request without a key"))
-
-        record = h.mistral_source()
-        self.assertEqual(record["state"], "unauthenticated")
-        self.assertNotIn("windows", record)
-
-    def test_mistral_rejected_key_is_not_a_number(self):
-        h = self.helper
-        self.stub_mistral_http(sub_status=401)
-
-        record = h.mistral_source()
-        self.assertEqual(record["state"], "unauthenticated")
-        self.assertNotIn("windows", record)
-
-    def test_mistral_rate_limit_is_not_reported_as_zero(self):
-        h = self.helper
-        self.stub_mistral_http(sub_status=429)
-
-        record = h.mistral_source()
-        self.assertEqual(record["state"], "rateLimited")
-        self.assertNotIn("windows", record)
-
-    def test_mistral_usage_failure_is_an_explicit_error(self):
-        h = self.helper
-        self.stub_mistral_http(fixture("mistral-subscription.json"), usage_status=500)
-
-        record = h.mistral_source()
-        self.assertEqual(record["state"], "error")
-        self.assertNotIn("windows", record)
-
-    def stub_mistral_web(self, api_key=None, cookie=None,
-                         subscription=None, usage=None, sub_status=200, usage_status=200,
-                         page=None, page_status=200, fallback=None, fallback_status=200):
-        """Stub both Mistral paths: the API-key billing endpoints and the
-        browser-session Admin page plus the console fallback route."""
-        h = self.helper
-        h.mistral_api_key = lambda: api_key
         h.mistral_cookie = lambda: cookie
         seen = {"calls": []}
 
         def fake_json(url, headers, *a, **k):
             seen["calls"].append(("json", url, headers))
-            if url.startswith(h.MISTRAL_SUBSCRIPTION_URL):
-                return subscription, {}, sub_status, None
-            if url.startswith(h.MISTRAL_USAGE_URL):
-                return usage, {}, usage_status, None
             if url.startswith(h.MISTRAL_VIBE_USAGE_URL):
                 return fallback, {}, fallback_status, None
             raise AssertionError("unexpected request to " + url)
@@ -370,24 +235,41 @@ class VendorParsingTest(unittest.TestCase):
         chunk = format(len(body.encode()), "x") + ":" + body + "\n"
         return '<script>self.__next_f.push([1,' + json.dumps(chunk) + '])</script>'
 
-    def test_mistral_vibe_plan_window_comes_from_the_subscription_page(self):
+    def test_mistral_without_a_cookie_is_unauthenticated(self):
+        h = self.helper
+        h.mistral_cookie = lambda: None
+        h.http_text = lambda *a, **k: (_ for _ in ()).throw(AssertionError("no request without a cookie"))
+
+        record = h.mistral_source()
+        self.assertEqual(record["state"], "unauthenticated")
+        self.assertNotIn("windows", record)
+        self.assertIn("providers.json", record["detail"])
+
+    def test_mistral_page_yields_both_allowance_windows(self):
         h = self.helper
         page = (FIXTURES / "mistral-subscription-page.html").read_text(encoding="utf-8")
         cookie = "ory_session_default=abc123; csrftoken=tok; theme=dark"
-        seen = self.stub_mistral_web(api_key=None, cookie=cookie, page=page)
+        seen = self.stub_mistral_web(cookie=cookie, page=page)
 
         record = h.mistral_source()
         self.assertEqual(record["state"], "ok")
-        self.assertEqual(len(record["windows"]), 1)
-        window = record["windows"][0]
-        self.assertEqual(window["id"], "vibe")
-        self.assertEqual(window["label"], "Vibe")
-        self.assertEqual(window["unit"], "count")
-        self.assertAlmostEqual(window["limit"], 27.0)
-        self.assertAlmostEqual(window["used"], 17.28)
-        self.assertAlmostEqual(window["remaining"], 9.72)
-        self.assertEqual(window["resetAt"], "2026-11-01T00:00:00+00:00")
-        # The page carried a vibe budget, so the console fallback is not needed.
+        self.assertEqual([w["id"] for w in record["windows"]], ["api", "vibe"])
+        api, vibe = record["windows"]
+        # The fixture page carries a 36% API budget and a 64% Vibe budget,
+        # both over a 27 EUR allowance.
+        self.assertEqual(api["label"], "API")
+        self.assertEqual(api["unit"], "count")
+        self.assertAlmostEqual(api["limit"], 27.0)
+        self.assertAlmostEqual(api["used"], 9.72)
+        self.assertAlmostEqual(api["remaining"], 17.28)
+        self.assertEqual(api["resetAt"], "2026-11-01T00:00:00+00:00")
+        self.assertEqual(vibe["label"], "Vibe Code")
+        self.assertEqual(vibe["unit"], "count")
+        self.assertAlmostEqual(vibe["limit"], 27.0)
+        self.assertAlmostEqual(vibe["used"], 17.28)
+        self.assertAlmostEqual(vibe["remaining"], 9.72)
+        self.assertEqual(vibe["resetAt"], "2026-11-01T00:00:00+00:00")
+        # The page carried both budgets, so the console fallback is not needed.
         self.assertFalse(any(url.startswith(h.MISTRAL_VIBE_USAGE_URL)
                              for _, url, _ in seen["calls"]))
         # The configured cookie is sent to the Admin page verbatim.
@@ -395,7 +277,7 @@ class VendorParsingTest(unittest.TestCase):
         self.assertEqual(page_call[2]["Cookie"], cookie)
         self.assertEqual(page_call[2]["Referer"], h.MISTRAL_SUBSCRIPTION_PAGE_URL)
 
-    def test_mistral_vibe_plan_falls_back_to_the_console_route(self):
+    def test_mistral_page_without_a_vibe_budget_falls_back_to_the_console(self):
         h = self.helper
         # A page whose budget record carries only the API allowance.
         page = self.subscription_page({"budget": {"api_budget": {
@@ -403,16 +285,19 @@ class VendorParsingTest(unittest.TestCase):
             "currency": "EUR", "reset_at": "2026-11-01T00:00:00.000Z",
         }}})
         cookie = "theme=dark; ory_session_default=abc123; csrftoken=tok; other=1"
-        seen = self.stub_mistral_web(api_key=None, cookie=cookie, page=page,
+        seen = self.stub_mistral_web(cookie=cookie, page=page,
                                      fallback=fixture("mistral-vibe-usage.json"))
 
         record = h.mistral_source()
         self.assertEqual(record["state"], "ok")
-        window = record["windows"][0]
+        self.assertEqual([w["id"] for w in record["windows"]], ["api", "vibe"])
+        api, vibe = record["windows"]
+        self.assertEqual(api["unit"], "count")
+        self.assertAlmostEqual(api["remaining"], 17.28)
         # The console route answers a percentage only.
-        self.assertEqual(window["unit"], "percent")
-        self.assertEqual(window["usedPercentage"], 64.0)
-        self.assertEqual(window["resetAt"], "2026-11-01T00:00:00+00:00")
+        self.assertEqual(vibe["unit"], "percent")
+        self.assertEqual(vibe["usedPercentage"], 64.0)
+        self.assertEqual(vibe["resetAt"], "2026-11-01T00:00:00+00:00")
         # Only the csrftoken and ory_session_* cookies cross to the console.
         fallback_call = next(c for c in seen["calls"]
                              if c[1].startswith(h.MISTRAL_VIBE_USAGE_URL))
@@ -420,57 +305,48 @@ class VendorParsingTest(unittest.TestCase):
         self.assertEqual(headers["X-CSRFToken"], "tok")
         self.assertEqual(headers["Cookie"], "csrftoken=tok; ory_session_default=abc123")
 
-    def test_mistral_vibe_plan_without_a_session_cookie_is_a_note(self):
+    def test_mistral_page_without_an_api_budget_shows_only_the_vibe_window(self):
         h = self.helper
-        seen = self.stub_mistral_web(api_key=None, cookie="csrftoken=tok")
+        page = self.subscription_page({"budget": {"vibe_budget": {
+            "usage_percentage": 64.0, "initial_budget": 27.0,
+            "currency": "EUR", "reset_at": "2026-11-01T00:00:00.000Z",
+        }}})
+        seen = self.stub_mistral_web(cookie="ory_session_default=abc123", page=page)
 
         record = h.mistral_source()
+        self.assertEqual(record["state"], "ok")
+        self.assertEqual([w["id"] for w in record["windows"]], ["vibe"])
+        self.assertFalse(any(url.startswith(h.MISTRAL_VIBE_USAGE_URL)
+                             for _, url, _ in seen["calls"]))
+
+    def test_mistral_plan_without_any_allowance_is_a_legitimate_absence(self):
+        h = self.helper
+        page = self.subscription_page({"budget": {"api_budget": {
+            "usage_percentage": 0.0, "initial_budget": 0.0, "currency": "EUR",
+        }}})
+        self.stub_mistral_web(cookie="ory_session_default=abc123; csrftoken=tok", page=page)
+
+        record = h.mistral_source()
+        self.assertEqual(record["state"], "unknown")
+        self.assertNotIn("windows", record)
+
+    def test_mistral_without_a_session_cookie_is_a_note(self):
+        h = self.helper
+        seen = self.stub_mistral_web(cookie="csrftoken=tok")
+
+        record = h.mistral_source()
+        self.assertEqual(record["state"], "error")
         self.assertNotIn("windows", record)
         self.assertIn("ory_session", record["detail"])
         # No request is made without a session cookie.
         self.assertEqual(seen["calls"], [])
 
-    def test_mistral_vibe_session_expired_is_reported(self):
+    def test_mistral_session_expired_is_reported(self):
         h = self.helper
-        self.stub_mistral_web(api_key=None, cookie="ory_session_default=abc123",
-                              page_status=401)
+        self.stub_mistral_web(cookie="ory_session_default=abc123", page_status=401)
 
         record = h.mistral_source()
         self.assertEqual(record["state"], "unauthenticated")
-        self.assertIn("expired", record["detail"])
-
-    def test_mistral_row_combines_the_allowance_and_the_vibe_plan(self):
-        h = self.helper
-        page = (FIXTURES / "mistral-subscription-page.html").read_text(encoding="utf-8")
-        self.stub_mistral_web(
-            api_key="not-a-real-mistral-key",
-            cookie="ory_session_default=abc123; csrftoken=tok",
-            subscription=fixture("mistral-subscription.json"),
-            usage=fixture("mistral-usage.json"),
-            page=page,
-        )
-
-        record = h.mistral_source()
-        self.assertEqual(record["state"], "ok")
-        self.assertEqual([w["id"] for w in record["windows"]], ["monthly", "vibe"])
-        monthly, vibe = record["windows"]
-        self.assertAlmostEqual(monthly["remaining"], 17.25)
-        self.assertAlmostEqual(vibe["remaining"], 9.72)
-        self.assertEqual(record["detail"], "Mistral Pro · €12.5 credits")
-
-    def test_mistral_expired_cookie_does_not_hide_the_allowance(self):
-        h = self.helper
-        self.stub_mistral_web(
-            api_key="not-a-real-mistral-key",
-            cookie="ory_session_default=abc123",
-            subscription=fixture("mistral-subscription.json"),
-            usage=fixture("mistral-usage.json"),
-            page_status=401,
-        )
-
-        record = h.mistral_source()
-        self.assertEqual(record["state"], "ok")
-        self.assertEqual([w["id"] for w in record["windows"]], ["monthly"])
         self.assertIn("expired", record["detail"])
 
     def test_subscription_page_fixture_yields_both_budgets(self):
@@ -523,14 +399,19 @@ class VendorParsingTest(unittest.TestCase):
         self.assertIsNone(h.mistral_vibe_usage_fallback(pairs))
 
 
-class MistralKeyTest(unittest.TestCase):
-    """The key is read the way the Vibe CLI reads it: env first, then ~/.vibe/.env."""
+class SnapshotPrecedenceTest(unittest.TestCase):
+    """A saved limits.json snapshot is the credential-free fallback.
+
+    A live sign-in always wins over it; the snapshot is read only when no
+    live credential exists, never to shadow one with frozen values.
+    """
 
     def setUp(self):
         self.helper = load_helper()
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.home = Path(self.temp.name)
+        self.config_home = Path(self.temp.name) / "config"
+        (self.config_home / "limit-widget").mkdir(parents=True)
         self.saved_environ = os.environ.copy()
 
         def restore():
@@ -538,36 +419,54 @@ class MistralKeyTest(unittest.TestCase):
             os.environ.update(self.saved_environ)
 
         self.addCleanup(restore)
-        os.environ["HOME"] = str(self.home)
-        os.environ.pop("MISTRAL_API_KEY", None)
-        os.environ.pop("VIBE_HOME", None)
+        os.environ["XDG_CONFIG_HOME"] = str(self.config_home)
+        # Keep the optional CodexBar CLI out of the snapshot.
+        os.environ["LIMIT_WIDGET_CODEXBAR"] = str(Path(self.temp.name) / "no-codexbar")
 
-    def write_env_file(self, text, vibe_home=False):
-        base = Path(os.environ["VIBE_HOME"]) if vibe_home else self.home / ".vibe"
-        base.mkdir(parents=True, exist_ok=True)
-        (base / ".env").write_text(text, encoding="utf-8")
+    def write_limits(self, payload):
+        (self.config_home / "limit-widget" / "limits.json").write_text(
+            json.dumps(payload), encoding="utf-8")
 
-    def test_environment_variable_is_read_first(self):
-        self.write_env_file("MISTRAL_API_KEY=from-file\n")
-        os.environ["MISTRAL_API_KEY"] = " from-env "
-        self.assertEqual(self.helper.mistral_api_key(), "from-env")
+    def stub_auto(self, state):
+        def auto_source(provider_id):
+            if provider_id == "mistral":
+                if state == "live":
+                    return {"state": "ok", "windows": [{
+                        "id": "api", "label": "API Usage", "unit": "count",
+                        "remaining": 25.5, "limit": 25.5, "used": 0.0,
+                    }]}
+                return {"state": state, "detail": "stubbed"}
+            return {"state": "unsupported"}
+        self.helper.auto_source = auto_source
 
-    def test_vibe_env_file_supplies_the_key(self):
-        self.write_env_file("# vibe credentials\nMISTRAL_API_KEY='mstrl_from_file'\nOTHER_KEY=x\n")
-        self.assertEqual(self.helper.mistral_api_key(), "mstrl_from_file")
+    def mistral_provider(self):
+        snapshot = self.helper.snapshot()
+        return next(p for p in snapshot["providers"] if p["id"] == "mistral")
 
-    def test_vibe_home_overrides_the_default_directory(self):
-        os.environ["VIBE_HOME"] = str(self.home / "elsewhere")
-        self.write_env_file("MISTRAL_API_KEY=from-home\n")
-        self.write_env_file("MISTRAL_API_KEY=from-vibe-home\n", vibe_home=True)
-        self.assertEqual(self.helper.mistral_api_key(), "from-vibe-home")
+    def test_live_source_wins_over_a_saved_snapshot(self):
+        self.write_limits({"providers": {"mistral": {"remaining": 1, "limit": 2}}})
+        self.stub_auto("live")
 
-    def test_env_file_ignores_comments_and_double_quotes(self):
-        self.write_env_file('# comment\n\nMISTRAL_API_KEY = "mstrl_quoted" \nexport OTHER=1\n')
-        self.assertEqual(self.helper.mistral_api_key(), "mstrl_quoted")
+        provider = self.mistral_provider()
+        self.assertEqual(provider["state"], "ok")
+        self.assertEqual(provider["remaining"], 25.5)
+        self.assertEqual(provider["limit"], 25.5)
 
-    def test_no_key_anywhere_is_none(self):
-        self.assertIsNone(self.helper.mistral_api_key())
+    def test_saved_snapshot_is_used_when_no_live_sign_in_exists(self):
+        self.write_limits({"providers": {"mistral": {"remaining": 17.25, "limit": 27}}})
+        self.stub_auto("unauthenticated")
+
+        provider = self.mistral_provider()
+        self.assertEqual(provider["remaining"], 17.25)
+        self.assertEqual(provider["limit"], 27)
+
+    def test_live_error_does_not_fall_back_to_a_stale_snapshot(self):
+        self.write_limits({"providers": {"mistral": {"remaining": 17.25, "limit": 27}}})
+        self.stub_auto("error")
+
+        provider = self.mistral_provider()
+        self.assertEqual(provider["state"], "error")
+        self.assertIsNone(provider["remaining"])
 
 
 class MistralCookieTest(unittest.TestCase):

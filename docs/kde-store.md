@@ -100,8 +100,9 @@ decides to install:
 >
 > Codex and Copilot figures come from client endpoints that those vendors do
 > not document as public third-party APIs, Claude usage comes from the
-> endpoint behind Claude Code's own `/usage`, and Mistral usage comes from
-> Mistral's billing endpoints. Any of them may change without notice.
+> endpoint behind Claude Code's own `/usage`, and Mistral's allowances come
+> from the Admin console with a pasted session cookie. Any of them may
+> change without notice.
 
 The full privacy statement is in the project README.
 

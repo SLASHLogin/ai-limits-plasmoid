@@ -42,8 +42,8 @@ these projects are.
 1. **Cost and spend.** Both wrappers show it. CodexBar exposes it through a
    second call, `codexbar cost`, with a `daily` series per provider. Only
    available when CodexBar is installed, so it cannot reach the native
-   providers without separate work per vendor. Mistral's monthly spend is
-   already read for the allowance window, but no daily series is kept.
+   providers without separate work per vendor. Mistral's allowances are
+   already read for the windows, but no daily series is kept.
 2. **Burn rate / pace.** Computable from data already collected — the elapsed
    fraction of a window against the used fraction — for any window whose length
    is known. No new data source needed. The most useful of the three.

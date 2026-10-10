@@ -9,7 +9,7 @@ and translations especially. If you are not sure whether an idea fits, open an
 issue and ask; a rough patch with a question attached is fine. See
 [`CONTRIBUTING.md`](CONTRIBUTING.md) to get started.
 
-A small Plasma 6 panel widget for keeping Codex/ChatGPT, Claude Code, GitHub
+A small Plasma 6 panel widget for keeping ChatGPT, Claude Code, GitHub
 Copilot, and Mistral Vibe limits in one monochrome view. The panel
 representation is a single compact summary (`C  — · A  — · G  — · M  —`);
 clicking it opens a popup with one symbolic row per provider.
@@ -57,7 +57,7 @@ plugin, so it can also be placed on the desktop.
 
 After installation, the helper automatically tries:
 
-- **Codex / ChatGPT:** the ChatGPT OAuth login in `~/.codex/auth.json` (or
+- **ChatGPT:** the ChatGPT OAuth login in `~/.codex/auth.json` (or
   `$CODEX_HOME`). Sign in with the Codex CLI using your ChatGPT account.
 - **GitHub Copilot:** `gh api copilot_internal/user`, reusing GitHub CLI's
   keychain-backed login. Run `gh auth login` if needed. This is the endpoint
@@ -69,19 +69,16 @@ After installation, the helper automatically tries:
   running: the widget shows **5h** and **7d** — plus per-model weekly windows on
   plans that have them — as of every refresh. Expired tokens are refreshed and
   written back the way the CLI does, so the login keeps working.
-- **Mistral Vibe:** the API key the Vibe CLI stores, read from `MISTRAL_API_KEY`
-  or `~/.vibe/.env` (or `$VIBE_HOME/.env`), through Mistral's billing
-  endpoints. Run `vibe --setup` to store the key. The widget shows the
-  subscription's **monthly** allowance in EUR — the one monthly usage pool
-  shared across Studio, the API, and Vibe Code — with the plan and credit
-  balance in the row's detail. Pay-as-you-go accounts without a monthly budget
-  show the credit balance only. The separate **Vibe Code monthly-plan** window
-  is only exposed to a browser session, so it is opt-in: paste the `Cookie`
-  header from <https://admin.mistral.ai/subscription> into
+- **Mistral Vibe:** the plan's monthly allowances, read from the Admin console
+  with a pasted browser session. Mistral exposes the included **API**
+  allowance and the **Vibe Code** allowance only to a browser session on
+  <https://admin.mistral.ai/subscription>, so the widget reads both from an
+  opt-in `Cookie` header pasted into
   `~/.config/limit-widget/providers.json` as
   `{"providers": {"mistral": {"cookie": "…"}}}` — keep the file `0600`, it
-  holds a session cookie. The window appears as a second row on the Mistral
-  entry and the session expires, so re-paste when the row notes it.
+  holds a session cookie. The widget shows both allowances as counted EUR
+  windows as of every refresh. The session expires, so re-paste when the row
+  notes it.
 
 If the helper cannot read a Claude login, a status-line bridge can cache the
 same windows instead:
@@ -118,14 +115,34 @@ number. For a simple, credential-free snapshot, create
       "detail": "Premium requests"
     },
     "mistral": {
-      "remaining": 17.25,
-      "limit": 27,
-      "resetAt": "2026-11-01T00:00:00Z",
-      "detail": "Mistral Pro · €12.5 credits"
+      "windows": [
+        {
+          "id": "api",
+          "label": "API",
+          "unit": "count",
+          "remaining": 25.5,
+          "limit": 25.5,
+          "used": 0,
+          "resetAt": "2026-11-01T00:00:00Z"
+        },
+        {
+          "id": "vibe",
+          "label": "Vibe Code",
+          "unit": "count",
+          "remaining": 234.1,
+          "limit": 255,
+          "used": 20.9,
+          "resetAt": "2026-11-01T00:00:00Z"
+        }
+      ],
+      "detail": "Mistral subscription"
     }
   }
 }
 ```
+
+A live sign-in always wins over a snapshot entry; the snapshot is the
+fallback for providers without one.
 
 For live values, use `~/.config/limit-widget/providers.json` to point at a
 local command for each provider:
@@ -186,11 +203,15 @@ from 1–60 minutes. Press **Refresh** in the popup for an immediate update.
 
 The settings page also lists every provider the widget has seen, so you can
 switch off the ones you do not use, and takes an explicit path to the CodexBar
-CLI if yours is not on `PATH`.
+CLI if yours is not on `PATH`. Two more toggles live there: hiding providers
+that have no usage yet (no sign-in, or a plan without an allowance), and
+showing the closest reset time when a rolling 5h/weekly window runs out —
+monthly allowances such as Mistral's and Copilot's are excluded, since their
+rows already carry their reset time.
 
 ## Provider limitations
 
-- **Codex / ChatGPT:** the helper uses the same OAuth login and usage endpoint
+- **ChatGPT:** the helper uses the same OAuth login and usage endpoint
   as the Codex CLI. OpenAI can change this client endpoint; if it stops
   working, sign in again or use a local adapter.
 - **Claude Code:** the widget reads the five-hour and seven-day windows, and
@@ -218,9 +239,8 @@ machine and renders what it returns; there is no telemetry, no analytics, and
 no server belonging to this project.
 
 - Credentials are read from the locations the provider CLIs already use:
-  `~/.codex/auth.json`, `~/.claude/.credentials.json`, `~/.vibe/.env` (or the
-  `MISTRAL_API_KEY` environment variable), and GitHub CLI's own credential
-  store. They are never copied elsewhere, never written to Plasma
+  `~/.codex/auth.json`, `~/.claude/.credentials.json`, and GitHub CLI's own
+  credential store. They are never copied elsewhere, never written to Plasma
   configuration, and never exposed to QML — only normalized numbers reach the
   widget.
 - When a Claude access token has expired, the collector refreshes it and writes
@@ -228,14 +248,13 @@ no server belonging to this project.
   it, with the file created `0600`.
 - The only network requests are made directly to the providers, over HTTPS:
   `chatgpt.com` (Codex usage), `api.anthropic.com` and `platform.claude.com`
-  (Claude usage and token refresh), `api.github.com` via the `gh` CLI (Copilot
-  quota), and `api.mistral.ai` (Mistral billing). Requests carry your existing
-  login and nothing else.
+  (Claude usage and token refresh), and `api.github.com` via the `gh` CLI
+  (Copilot quota). Requests carry your existing login and nothing else.
 - The optional Mistral session cookie is read from
   `~/.config/limit-widget/providers.json` and sent only to `admin.mistral.ai`
-  and `console.mistral.ai`, never anywhere else. When the Vibe plan falls back
-  to the console route, only the `csrftoken` and `ory_session_*` cookies
-  cross; every other cookie stays origin-bound.
+  and `console.mistral.ai`, never anywhere else. When the Vibe Code window
+  falls back to the console route, only the `csrftoken` and `ory_session_*`
+  cookies cross; every other cookie stays origin-bound.
 - If a provider is not signed in, its row shows a setup message. Unknown values
   stay `—` and are never shown as zero.
 

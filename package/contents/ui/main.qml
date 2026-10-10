@@ -26,6 +26,8 @@ PlasmoidItem {
     readonly property bool horizontalPanel: Plasmoid.formFactor === PlasmaCore.Types.Horizontal
     readonly property int refreshSeconds: Math.max(60, Number(Plasmoid.configuration.refreshInterval) || 300)
     readonly property bool showUnsupported: Plasmoid.configuration.showUnsupported !== false
+    readonly property bool hideEmptyProviders: Plasmoid.configuration.hideEmptyProviders === true
+    readonly property bool showExhaustedReset: Plasmoid.configuration.showExhaustedReset !== false
     // Ids the user has switched off, as a lookup rather than a repeated scan
     // of a comma-separated string for every provider on every repaint.
     readonly property var hiddenProviders: {
@@ -48,14 +50,27 @@ PlasmoidItem {
     property string lastUpdated: ""
     property string errorText: ""
     property var providers: [
-        defaultProvider("codex", "Codex / ChatGPT", "C", "codex-symbolic.svg", "https://chatgpt.com/settings/usage"),
+        defaultProvider("codex", "ChatGPT", "C", "codex-symbolic.svg", "https://chatgpt.com/settings/usage"),
         defaultProvider("claude", "Claude Code", "A", "claude-symbolic.svg", "https://claude.ai/settings/usage"),
         defaultProvider("copilot", "GitHub Copilot", "G", "copilot-symbolic.svg", "https://github.com/settings/copilot"),
         defaultProvider("mistral", "Mistral Vibe", "M", "mistral-symbolic.svg", "https://admin.mistral.ai/subscriptions")
     ]
 
+    // A provider with nothing to show: no live sign-in, or a plan without any
+    // allowance. A transient failure is a started provider that could not be
+    // read, not an empty one, so error rows stay visible.
+    function providerIsEmpty(provider) {
+        if (provider.state === "error" || provider.state === "rateLimited") {
+            return false;
+        }
+        return root.compactValue(provider) === "—";
+    }
+
     readonly property var displayedProviders: providers.filter(function (provider) {
         if (!root.providerVisible(provider)) {
+            return false;
+        }
+        if (root.hideEmptyProviders && root.providerIsEmpty(provider)) {
             return false;
         }
         return root.showUnsupported || provider.state === "ok" || provider.state === "stale";
@@ -65,7 +80,10 @@ PlasmoidItem {
     // panel representation grows with every row it draws, so including them
     // would push the rest of the panel off a normal-width screen.
     readonly property var panelProviders: providers.filter(function (provider) {
-        return root.providerVisible(provider) && String(provider.id || "").indexOf("codexbar:") !== 0;
+        if (!root.providerVisible(provider) || String(provider.id || "").indexOf("codexbar:") === 0) {
+            return false;
+        }
+        return !root.hideEmptyProviders || !root.providerIsEmpty(provider);
     })
     readonly property string statusLine: {
         var known = providers.filter(function (provider) {
@@ -81,13 +99,37 @@ PlasmoidItem {
     }
     readonly property string compactSummary: providers.map(function (provider) {
         var value = root.compactValue(provider);
+        var hint = root.exhaustedReset(provider);
         // The panel itself has no room for a word, so spell the direction out
         // wherever there is: an unlabelled "99%" reads as consumption.
-        return provider.name + ": " + (value === "—" ? value : value + " " + i18n("left"));
+        var body = value === "—" ? value : value + " " + i18n("left");
+        return provider.name + ": " + (hint ? body + " · " + hint : body);
     }).join("  ·  ")
     readonly property int compactWidth: 16 + providers.reduce(function (width, provider) {
         return width + root.compactProviderWidth(provider);
     }, 0) + Math.max(0, providers.length - 1) * 6;
+    // The popup's fixed chrome around the provider rows: margins, header,
+    // spacing, separator and footer. Keep in sync with fullRepresentation.
+    readonly property int popupChromeHeight: 123;
+    // The height the popup's rows need, so the popup can size itself to fit
+    // them instead of cutting the last row's Usage button off.
+    readonly property int rowsHeight: {
+        var total = 0;
+        for (var index = 0; index < displayedProviders.length; index++) {
+            var provider = displayedProviders[index];
+            var gauges = 0;
+            var windows = provider.windows || [];
+            for (var position = 0; position < windows.length; position++) {
+                var window = windows[position];
+                if (typeof window.remaining === "number" && typeof window.limit === "number" && window.limit > 0) {
+                    gauges++;
+                }
+            }
+            // Keep in sync with ProviderRow's implicitHeight.
+            total += 54 + Math.max(1, gauges) * 7;
+        }
+        return total + Math.max(0, displayedProviders.length - 1) * 5;
+    }
 
     // Used in the widget picker and Plasma's generic applet UI. The custom
     // compact panel representation below intentionally does not render it.
@@ -170,7 +212,7 @@ PlasmoidItem {
                 return String(Math.round(entries[0].percent)) + "%/" + String(Math.round(Math.min.apply(null, weekly))) + "%";
             }
             // With no weekly window, a second window is a separate budget of
-            // the same length — Mistral's Vibe Code plan next to its monthly
+            // the same length — Mistral's Vibe Code allowance next to its API
             // allowance. Show both values, as the session/weekly pair does,
             // rather than only the tighter one.
             if (entries.length > 1) {
@@ -186,7 +228,63 @@ PlasmoidItem {
     }
 
     function compactProviderWidth(provider) {
-        return 16 + 4 + Math.ceil(compactFontMetrics.advanceWidth(root.compactValue(provider))) + 4;
+        return 16 + 4 + Math.ceil(compactFontMetrics.advanceWidth(root.panelValue(provider))) + 4;
+    }
+
+    // The value the horizontal panel draws for one provider: the compact
+    // share, plus the exhausted-window reset hint when one applies.
+    function panelValue(provider) {
+        var value = root.compactValue(provider);
+        var hint = root.exhaustedReset(provider);
+        return hint ? value + " · " + hint : value;
+    }
+
+    // The closest upcoming reset among a provider's exhausted session/weekly
+    // windows, e.g. "5h resets 14:30". The hint only makes sense for rolling
+    // 5h/7d-style limits: monthly allowances — Mistral's EUR windows and
+    // Copilot's premium interactions — already carry their reset in the row's
+    // reset line, so those providers are excluded.
+    function exhaustedReset(provider) {
+        if (!root.showExhaustedReset) {
+            return "";
+        }
+        if (provider.id === "mistral" || provider.id === "copilot") {
+            return "";
+        }
+        var windows = provider.windows || [];
+        var now = Date.now();
+        var closest = 0;
+        var closestLabel = "";
+        for (var index = 0; index < windows.length; index++) {
+            var window = windows[index];
+            if (window.unit !== "percent") {
+                continue;
+            }
+            if (typeof window.resetAt !== "string" || !window.resetAt) {
+                continue;
+            }
+            var remaining = root.remainingPercent(window);
+            if (remaining === null || remaining > 0) {
+                continue;
+            }
+            var reset = new Date(window.resetAt).getTime();
+            if (isNaN(reset) || reset <= now) {
+                continue;
+            }
+            if (closest === 0 || reset < closest) {
+                closest = reset;
+                closestLabel = String(window.label || "");
+            }
+        }
+        if (closest === 0) {
+            return "";
+        }
+        var resetDate = new Date(closest);
+        var formatted = closest - now < 24 * 60 * 60 * 1000
+            ? Qt.formatDateTime(resetDate, "HH:mm")
+            : Qt.formatDateTime(resetDate, "d MMM HH:mm");
+        var label = windows.length > 1 && closestLabel ? closestLabel + " " : "";
+        return i18n("resets %1", label + formatted);
     }
 
     FontMetrics {
@@ -300,7 +398,7 @@ PlasmoidItem {
                     }
 
                     QQC2.Label {
-                        text: root.compactValue(horizontalProvider.modelData)
+                        text: root.panelValue(horizontalProvider.modelData)
                         font.pixelSize: 10
                         color: Kirigami.Theme.textColor
                     }
@@ -351,7 +449,9 @@ PlasmoidItem {
     fullRepresentation: Item {
         id: popup
         implicitWidth: 382
-        implicitHeight: 356
+        // Tall enough for the rows the collector reports by default, so the
+        // last row's Usage button is not cut off; further rows scroll.
+        implicitHeight: Math.min(root.popupChromeHeight + root.rowsHeight, 480)
         Layout.minimumWidth: implicitWidth
         Layout.minimumHeight: implicitHeight
 
@@ -405,6 +505,10 @@ PlasmoidItem {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
+                // The rows' width is bound to the popup's width, so horizontal
+                // scrolling is never meaningful; keeping the bar off also
+                // reclaims the height it would otherwise take from the rows.
+                QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
 
                 ColumnLayout {
                     width: popup.width - 32
@@ -415,6 +519,7 @@ PlasmoidItem {
                         delegate: ProviderRow {
                             required property var modelData
                             provider: modelData
+                            resetHint: root.exhaustedReset(modelData)
                         }
                     }
 
