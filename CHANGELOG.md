@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fixed: the popup's Refresh button no longer matched the provider rows'
+  Usage buttons. Its 28×28 size was set through width and height, which a
+  RowLayout ignores — its children size through the attached Layout
+  properties — so it rendered at the style's implicit size, larger and with
+  its centre off the Usage buttons' line. Both are 28×28 again, sharing one
+  centre line.
 - Fixed: a provider with more than one usage bar showed its values in a
   smaller font than a single-bar provider, so rows read as if the widget
   shrank them — Claude Code next to GitHub Copilot. Every row now uses the

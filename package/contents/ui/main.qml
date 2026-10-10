@@ -619,8 +619,12 @@ PlasmoidItem {
                 QQC2.Button {
                     id: refreshButton
                     text: i18n("Refresh")
-                    width: 28
-                    height: 28
+                    // 28×28, so it sits on the same centre line and at the
+                    // same size as the provider rows' Usage buttons. A
+                    // RowLayout sizes its children from the attached Layout
+                    // properties — width and height are ignored in here.
+                    Layout.preferredWidth: 28
+                    Layout.preferredHeight: 28
                     icon.name: "view-refresh"
                     display: QQC2.AbstractButton.IconOnly
                     enabled: !root.loading
