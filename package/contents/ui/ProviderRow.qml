@@ -162,7 +162,10 @@ Item {
                     return row.resetHint ? body + " · " + row.resetHint : body + " " + i18n("left");
                 }
                 font.bold: true
-                font.pixelSize: row.windows.length > 1 ? 11 : (row.compact ? 11 : 13)
+                // One size for every row, so a provider with several windows
+                // does not read as smaller than a single-window one. A summary
+                // too wide for the row elides from the left, as it always has.
+                font.pixelSize: row.compact ? 11 : 13
                 horizontalAlignment: Text.AlignRight
                 elide: Text.ElideLeft
                 Accessible.name: row.hasValue ? text : qsTr("Limit unavailable")

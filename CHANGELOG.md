@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed: a provider with more than one usage bar showed its values in a
+  smaller font than a single-bar provider, so rows read as if the widget
+  shrank them — Claude Code next to GitHub Copilot. Every row now uses the
+  same size, and a summary too wide for its row still elides from the left.
 - New: providers can be reordered. Each row in the settings' provider list
   carries an up and a down button, and the saved order applies to the panel,
   the popup, and the tooltip alike. A newly supported provider appears at
