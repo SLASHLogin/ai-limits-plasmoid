@@ -76,7 +76,7 @@ USER_AGENT = "limit-widget/0.3"
 PROVIDERS = (
     {
         "id": "codex",
-        "name": "Codex / ChatGPT",
+        "name": "ChatGPT",
         "shortName": "C",
         "symbol": "codex-symbolic.svg",
         "url": "https://chatgpt.com/settings/usage",
