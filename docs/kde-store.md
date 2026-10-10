@@ -41,7 +41,8 @@ kpackagetool6 --type Plasma/Applet --install dist/ai-limits-1.0.0.plasmoid
    `screenshots/widget-popup.png` and `screenshots/widget-settings.png`
    are rendered from `examples/screenshot-payload.json`, a collector
    output whose texts are the collector's own and whose numbers are
-   samples.
+   samples; each also exists as a `-light` variant. The light logo and
+   hero are the dark ones' own composition with the palette mirrored.
 
 ## Uploading to KDE Store
 

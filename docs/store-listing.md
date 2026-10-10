@@ -36,6 +36,9 @@ a faithful proportional resize — it is not cropped.
 3. `screenshots/widget-settings.png` — the settings page: per-provider
    visibility, the up/down order arrows, and the panel's other options.
 
+Every picture also exists in a light variant, `-light` suffixed, for a
+listing that prefers it; the dark ones are the defaults above.
+
 ## Tags (5 maximum)
 
 ```
