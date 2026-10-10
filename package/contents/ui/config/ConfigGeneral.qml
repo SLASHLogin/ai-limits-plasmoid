@@ -81,7 +81,7 @@ Kirigami.FormLayout {
     QQC2.CheckBox {
         id: hideEmptyProviders
         Kirigami.FormData.label: i18n("Providers:")
-        text: i18n("Hide providers with no usage yet")
+        text: i18n("Hide providers with no usage yet in the panel")
     }
 
     QQC2.CheckBox {

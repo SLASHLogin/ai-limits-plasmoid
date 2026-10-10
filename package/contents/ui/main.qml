@@ -63,29 +63,52 @@ PlasmoidItem {
         defaultProvider("mistral", "Mistral Vibe", "M", "mistral-symbolic.svg", "https://admin.mistral.ai/subscriptions")
     ]
 
-    // A provider with nothing to show: no live sign-in, or a plan without any
-    // allowance. A transient failure is a started provider that could not be
-    // read, not an empty one, so error rows stay visible.
+    // A provider with nothing to show: no live sign-in, a plan without any
+    // allowance, or an allowance nothing was consumed from yet — an untouched
+    // window reads 100% the same way an absent one reads "—". A transient
+    // failure is a started provider that could not be read, not an empty one,
+    // so error rows stay visible.
     function providerIsEmpty(provider) {
         if (provider.state === "error" || provider.state === "rateLimited") {
             return false;
         }
-        return root.compactValue(provider) === "—";
+        if (root.compactValue(provider) === "—") {
+            return true;
+        }
+        // Every reported window untouched means no usage this period. A window
+        // without numbers proves nothing — an unlimited plan's usage cannot be
+        // measured, so one such window keeps the provider visible.
+        var windows = provider.windows && typeof provider.windows.length === "number" ? provider.windows : [];
+        var measurable = 0;
+        for (var index = 0; index < windows.length; index++) {
+            var windowPercent = root.remainingPercent(windows[index]);
+            if (windowPercent !== null) {
+                measurable++;
+                if (windowPercent < 100) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        if (measurable === 0) {
+            return root.remainingPercent(provider) === 100;
+        }
+        return true;
     }
 
     readonly property var displayedProviders: providers.filter(function (provider) {
         if (!root.providerVisible(provider)) {
             return false;
         }
-        if (root.hideEmptyProviders && root.providerIsEmpty(provider)) {
-            return false;
-        }
         return root.showUnsupported || provider.state === "ok" || provider.state === "stale";
     })
-    // Providers discovered through the optional CodexBar CLI are shown in the
-    // popup but kept out of the panel. There can be dozens of them, and the
-    // panel representation grows with every row it draws, so including them
-    // would push the rest of the panel off a normal-width screen.
+    // The panel alone honors "hide providers with no usage yet" — the popup is
+    // the place to look a provider up in, so it keeps listing every row.
+    // Providers discovered through the optional CodexBar CLI are also shown in
+    // the popup but kept out of the panel. There can be dozens of them, and
+    // the panel representation grows with every row it draws, so including
+    // them would push the rest of the panel off a normal-width screen.
     readonly property var panelProviders: providers.filter(function (provider) {
         if (!root.providerVisible(provider) || String(provider.id || "").indexOf("codexbar:") === 0) {
             return false;

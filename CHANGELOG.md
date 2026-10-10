@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- New: "Hide providers with no usage yet" now applies to the panel alone and
+  also treats an untouched allowance as no usage — a provider whose every
+  window sits at its full 100% hides alongside signed-out and allowance-less
+  ones. The popup keeps listing every row. A window that carries no numbers
+  (an unlimited plan, whose usage cannot be measured) keeps its provider
+  visible, as do transient error rows.
 - Fixed: the settings dialog came up empty, or kept whatever page was shown
   before, instead of the widget's own settings. The General category's source
   in `config.qml` is resolved against `contents/ui`, so the

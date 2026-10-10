@@ -11,8 +11,10 @@
         <entry name="showUnsupported" type="Bool">
             <default>true</default>
         </entry>
-        <!-- Hide providers that have nothing to show: no live sign-in, or a
-             plan without any allowance. Transient error rows stay visible. -->
+        <!-- Hide in the panel providers that have nothing to show: no live
+             sign-in, a plan without any allowance, or an allowance nothing was
+             consumed from yet. The popup keeps listing every row; transient
+             error rows stay visible everywhere. -->
         <entry name="hideEmptyProviders" type="Bool">
             <default>false</default>
         </entry>
