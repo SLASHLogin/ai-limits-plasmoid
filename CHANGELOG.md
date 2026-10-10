@@ -7,7 +7,9 @@
   window sits at its full 100% hides alongside signed-out and allowance-less
   ones. The popup keeps listing every row. A window that carries no numbers
   (an unlimited plan, whose usage cannot be measured) keeps its provider
-  visible, as do transient error rows.
+  visible, as do transient error rows. The panel also shrinks to fit what it
+  still shows instead of stretching the remaining rows across the space the
+  hidden ones used to take.
 - Fixed: the settings dialog came up empty, or kept whatever page was shown
   before, instead of the widget's own settings. The General category's source
   in `config.qml` is resolved against `contents/ui`, so the

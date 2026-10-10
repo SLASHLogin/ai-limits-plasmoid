@@ -140,9 +140,12 @@ PlasmoidItem {
         var body = value === "—" ? value : value + " " + i18n("left");
         return provider.name + ": " + body;
     }).join("  ·  ")
-    readonly property int compactWidth: 16 + providers.reduce(function (width, provider) {
+    // The width of what the panel actually draws — panelProviders, not every
+    // provider — so hidden rows shrink the widget instead of stretching the
+    // remaining ones across space they no longer need.
+    readonly property int compactWidth: 16 + panelProviders.reduce(function (width, provider) {
         return width + root.compactProviderWidth(provider);
-    }, 0) + Math.max(0, providers.length - 1) * 6;
+    }, 0) + Math.max(0, panelProviders.length - 1) * 6;
     // The popup's fixed chrome around the provider rows: margins, header,
     // spacing, separator and footer. Keep in sync with fullRepresentation.
     readonly property int popupChromeHeight: 123;
