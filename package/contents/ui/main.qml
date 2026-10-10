@@ -28,6 +28,13 @@ PlasmoidItem {
     readonly property bool showUnsupported: Plasmoid.configuration.showUnsupported !== false
     readonly property bool hideEmptyProviders: Plasmoid.configuration.hideEmptyProviders === true
     readonly property bool showExhaustedReset: Plasmoid.configuration.showExhaustedReset !== false
+    // What the popup's reset hint contains: the short duration until the
+    // reset, the absolute date, or both. Anything unknown falls back to the
+    // absolute date, which is what the hint has always shown.
+    readonly property string resetTextFormat: {
+        var format = String(Plasmoid.configuration.resetTextFormat || "");
+        return format === "short" || format === "both" ? format : "long";
+    }
     // Ids the user has switched off, as a lookup rather than a repeated scan
     // of a comma-separated string for every provider on every repaint.
     readonly property var hiddenProviders: {
@@ -98,12 +105,17 @@ PlasmoidItem {
         return String(known) + " / " + String(providers.length) + " available";
     }
     readonly property string compactSummary: providers.map(function (provider) {
+        // As in the panel: an exhausted window makes the percentages
+        // unusable, so the tooltip shows the time until the reset alone.
+        var reset = root.panelReset(provider);
+        if (reset) {
+            return provider.name + ": " + reset;
+        }
         var value = root.compactValue(provider);
-        var hint = root.exhaustedReset(provider);
         // The panel itself has no room for a word, so spell the direction out
         // wherever there is: an unlabelled "99%" reads as consumption.
         var body = value === "—" ? value : value + " " + i18n("left");
-        return provider.name + ": " + (hint ? body + " · " + hint : body);
+        return provider.name + ": " + body;
     }).join("  ·  ")
     readonly property int compactWidth: 16 + providers.reduce(function (width, provider) {
         return width + root.compactProviderWidth(provider);
@@ -231,25 +243,63 @@ PlasmoidItem {
         return 16 + 4 + Math.ceil(compactFontMetrics.advanceWidth(root.panelValue(provider))) + 4;
     }
 
-    // The value the horizontal panel draws for one provider: the compact
-    // share, plus the exhausted-window reset hint when one applies.
+    // The value the panel draws for one provider: the compact share, or —
+    // when a rolling window is exhausted and the allowance cannot be used
+    // at all — the time until the closest reset alone. The percentages then
+    // carry no information.
     function panelValue(provider) {
-        var value = root.compactValue(provider);
-        var hint = root.exhaustedReset(provider);
-        return hint ? value + " · " + hint : value;
+        var reset = root.panelReset(provider);
+        return reset ? reset : root.compactValue(provider);
+    }
+
+    // The time until the closest reset of an exhausted rolling window, in
+    // the biggest unit that expresses it: "30min", "3d". An exhausted window
+    // blocks the provider outright — with Claude and ChatGPT, either period
+    // at 0% stops all usage — so naming the window adds nothing, and the
+    // panel has no room for a word besides.
+    function panelReset(provider) {
+        var found = root.closestExhaustedReset(provider);
+        if (!found) {
+            return "";
+        }
+        return root.formatResetIn(found.reset - Date.now());
+    }
+
+    // The time until a reset, in the biggest unit that expresses it:
+    // "3d", "6h", "30min", "15s". An absolute clock time would be longer
+    // than the percentage it replaces, and less readable besides.
+    function formatResetIn(deltaMs) {
+        var minutes = deltaMs / 60000;
+        if (minutes >= 60 * 24) {
+            return i18n("%1d", Math.round(deltaMs / 86400000));
+        }
+        if (minutes >= 60) {
+            return i18n("%1h", Math.round(minutes / 60));
+        }
+        if (minutes >= 1) {
+            return i18n("%1min", Math.round(minutes));
+        }
+        return i18n("%1s", Math.max(1, Math.round(deltaMs / 1000)));
+    }
+
+    // The rolling-period windows arrive labelled "5h" and "7d"; the popup
+    // shows them capitalised: "5H", "7D", "Opus 7D".
+    function periodLabel(label) {
+        return String(label || "").replace(/5h$/, "5H").replace(/7d$/, "7D");
     }
 
     // The closest upcoming reset among a provider's exhausted session/weekly
-    // windows, e.g. "5h resets 14:30". The hint only makes sense for rolling
-    // 5h/7d-style limits: monthly allowances — Mistral's EUR windows and
-    // Copilot's premium interactions — already carry their reset in the row's
-    // reset line, so those providers are excluded.
-    function exhaustedReset(provider) {
+    // windows: { reset: timestamp, label: window label }, or null when no
+    // rolling window is exhausted. The reset display only makes sense for
+    // rolling 5h/7d-style limits: monthly allowances — Mistral's EUR windows
+    // and Copilot's premium interactions — already carry their reset in the
+    // row's reset line, so those providers are excluded.
+    function closestExhaustedReset(provider) {
         if (!root.showExhaustedReset) {
-            return "";
+            return null;
         }
         if (provider.id === "mistral" || provider.id === "copilot") {
-            return "";
+            return null;
         }
         var windows = provider.windows || [];
         var now = Date.now();
@@ -277,14 +327,33 @@ PlasmoidItem {
             }
         }
         if (closest === 0) {
+            return null;
+        }
+        return { reset: closest, label: closestLabel };
+    }
+
+    // The popup's hint for an exhausted rolling window, e.g. "R 5H 14:30".
+    // Whether it carries the short duration, the absolute date, or both is
+    // the resetTextFormat setting; the taskbar always shows the duration.
+    function exhaustedReset(provider) {
+        var found = root.closestExhaustedReset(provider);
+        if (!found) {
             return "";
         }
-        var resetDate = new Date(closest);
-        var formatted = closest - now < 24 * 60 * 60 * 1000
+        var delta = found.reset - Date.now();
+        var resetDate = new Date(found.reset);
+        var long = delta < 24 * 60 * 60 * 1000
             ? Qt.formatDateTime(resetDate, "HH:mm")
             : Qt.formatDateTime(resetDate, "d MMM HH:mm");
-        var label = windows.length > 1 && closestLabel ? closestLabel + " " : "";
-        return i18n("resets %1", label + formatted);
+        var time = long;
+        if (root.resetTextFormat === "short") {
+            time = root.formatResetIn(delta);
+        } else if (root.resetTextFormat === "both") {
+            time = root.formatResetIn(delta) + " " + long;
+        }
+        var windows = provider.windows || [];
+        var label = windows.length > 1 && found.label ? root.periodLabel(found.label) + " " : "";
+        return i18n("R %1", label + time);
     }
 
     FontMetrics {
@@ -430,7 +499,7 @@ PlasmoidItem {
                     }
 
                     QQC2.Label {
-                        text: root.compactValue(verticalProvider.modelData)
+                        text: root.panelValue(verticalProvider.modelData)
                         font.pixelSize: 9
                         color: Kirigami.Theme.textColor
                     }

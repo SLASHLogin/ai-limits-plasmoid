@@ -14,6 +14,7 @@ Kirigami.FormLayout {
     property alias cfg_showUnsupported: showUnsupported.checked
     property alias cfg_hideEmptyProviders: hideEmptyProviders.checked
     property alias cfg_showExhaustedReset: showExhaustedReset.checked
+    property alias cfg_resetTextFormat: resetTextFormat.currentValue
     // Not an alias: the checkbox list writes this as a comma-separated string.
     property string cfg_hiddenProviders: ""
     property alias cfg_codexbarPath: codexbarPath.text
@@ -88,6 +89,20 @@ Kirigami.FormLayout {
         Kirigami.FormData.label: i18n("Display:")
         text: i18n("Show the closest reset when a 5h/weekly window is exhausted")
         checked: true
+    }
+
+    QQC2.ComboBox {
+        id: resetTextFormat
+        Kirigami.FormData.label: i18n("Popup reset text:")
+        // "long", matching the main.xml default.
+        currentIndex: 1
+        model: [
+            { value: "short", text: i18n("Short duration (30min)") },
+            { value: "long", text: i18n("Long date (14 Oct 12:25)") },
+            { value: "both", text: i18n("Both (30min 14 Oct 12:25)") }
+        ]
+        textRole: "text"
+        valueRole: "value"
     }
 
     ColumnLayout {

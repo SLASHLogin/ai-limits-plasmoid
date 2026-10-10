@@ -13,7 +13,7 @@ Item {
     required property var provider
     property bool compact: false
     // Set by the applet when an exhausted session/weekly window should name
-    // its closest reset, e.g. "5h resets 14:30". Empty means no hint.
+    // its closest reset, e.g. "R 5H 14:30". Empty means no hint.
     property string resetHint: ""
 
     readonly property var windows: provider && provider.windows && typeof provider.windows.length === "number"
@@ -74,9 +74,15 @@ Item {
             : row.formatValue(item.remaining) + " / " + row.formatValue(item.limit);
     }
 
+    // The rolling-period windows arrive labelled "5h" and "7d"; the popup
+    // shows them capitalised: "5H", "7D", "Opus 7D".
+    function periodLabel(label) {
+        return String(label || "").replace(/5h$/, "5H").replace(/7d$/, "7D");
+    }
+
     function windowSummary() {
         return row.windows.map(function (item) {
-            return (item.label || qsTr("Window")) + " " + row.windowValue(item);
+            return row.periodLabel(item.label || qsTr("Window")) + " " + row.windowValue(item);
         }).join("  ·  ");
     }
 
@@ -97,7 +103,7 @@ Item {
             var formatted = delta < 24 * 60 * 60 * 1000
                 ? Qt.formatDateTime(resetDate, "HH:mm")
                 : Qt.formatDateTime(resetDate, "d MMM HH:mm");
-            var label = row.windows.length > 1 ? (item.label || qsTr("Window")) + " " : "";
+            var label = row.windows.length > 1 ? row.periodLabel(item.label || qsTr("Window")) + " " : "";
             resets.push(label + formatted);
         }
         return resets.length > 0 ? qsTr("Next reset: ") + resets.join(" · ") : "";

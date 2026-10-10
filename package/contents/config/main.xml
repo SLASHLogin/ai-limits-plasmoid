@@ -21,6 +21,12 @@
         <entry name="showExhaustedReset" type="Bool">
             <default>true</default>
         </entry>
+        <!-- What the popup's reset hint contains: the short duration until
+             the reset ("30min"), the absolute date ("14 Oct 12:25"), or
+             both. The taskbar always shows the short duration alone. -->
+        <entry name="resetTextFormat" type="String">
+            <default>long</default>
+        </entry>
         <!-- Comma-separated provider ids to hide. Hiding rather than choosing
              what to show means a newly supported provider appears by default
              instead of silently missing from an existing configuration. -->
