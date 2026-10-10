@@ -493,6 +493,8 @@ PlasmoidItem {
                 QQC2.Button {
                     id: refreshButton
                     text: i18n("Refresh")
+                    width: 28
+                    height: 28
                     icon.name: "view-refresh"
                     display: QQC2.AbstractButton.IconOnly
                     enabled: !root.loading
