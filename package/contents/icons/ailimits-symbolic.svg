@@ -1,6 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="88 126 336 336">
   <!-- The product mark: ascending bars over the gauge track they are
-       measured against, the same shapes as screenshots/product-logo.svg. -->
+       measured against, the same shapes as screenshots/product-logo.svg.
+       The viewBox hugs the mark, so the icon renders as large inside its
+       box as the provider icons do inside theirs. -->
   <g fill="#ffffff">
     <rect x="120" y="296" width="60" height="104" rx="14"/>
     <rect x="226" y="232" width="60" height="168" rx="14"/>

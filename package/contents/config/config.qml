@@ -8,7 +8,8 @@ import org.kde.plasma.configuration
 ConfigModel {
     ConfigCategory {
         name: i18n("General")
-        icon: "view-statistics"
+        // The product mark, the same one the popup's header carries.
+        icon: Qt.resolvedUrl("../icons/ailimits-symbolic.svg")
         // The source is resolved against contents/ui, not the package root.
         source: "config/ConfigGeneral.qml"
     }
