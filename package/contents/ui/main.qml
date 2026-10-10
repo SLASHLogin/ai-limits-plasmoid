@@ -296,8 +296,12 @@ PlasmoidItem {
         return "—";
     }
 
+    // Exactly what the panel draws per provider: the icon, the RowLayout's
+    // 3 px spacing, and the text. No padding beyond that — any slack inside
+    // a cell would land on the widget's right edge and unbalance its
+    // margins.
     function compactProviderWidth(provider) {
-        return 16 + 4 + Math.ceil(compactFontMetrics.advanceWidth(root.panelValue(provider))) + 4;
+        return 16 + 3 + Math.ceil(compactFontMetrics.advanceWidth(root.panelValue(provider)));
     }
 
     // The value the panel draws for one provider: the compact share, or —
