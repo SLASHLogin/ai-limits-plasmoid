@@ -172,11 +172,11 @@ PlasmoidItem {
     // provider — so hidden rows shrink the widget instead of stretching the
     // remaining ones across space they no longer need. The base and the gap
     // mirror compactRepresentation's RowLayout: 4 px of margin on each side
-    // and 5 px between rows, so the drawing ends as far from the right edge
+    // and 10 px between rows, so the drawing ends as far from the right edge
     // as it starts from the left.
     readonly property int compactWidth: 8 + panelProviders.reduce(function (width, provider) {
         return width + root.compactProviderWidth(provider);
-    }, 0) + Math.max(0, panelProviders.length - 1) * 5;
+    }, 0) + Math.max(0, panelProviders.length - 1) * 10;
     // The popup's fixed chrome around the provider rows: margins, header,
     // spacing, separator and footer. Keep in sync with fullRepresentation.
     readonly property int popupChromeHeight: 123;
@@ -507,7 +507,7 @@ PlasmoidItem {
             anchors.fill: parent
             anchors.leftMargin: 4
             anchors.rightMargin: 4
-            spacing: 5
+            spacing: 10
 
             Repeater {
                 model: root.panelProviders
