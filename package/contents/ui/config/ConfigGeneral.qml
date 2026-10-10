@@ -6,8 +6,9 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 
 import org.kde.kirigami as Kirigami
+import org.kde.kcmutils as KCM
 import org.kde.plasma.plasmoid
-Kirigami.FormLayout {
+KCM.SimpleKCM {
     id: page
 
     property alias cfg_refreshInterval: refreshInterval.value
@@ -102,112 +103,114 @@ Kirigami.FormLayout {
         page.cfg_providerOrder = ids.join(",");
     }
 
-    QQC2.SpinBox {
-        id: refreshInterval
-        Kirigami.FormData.label: i18n("Refresh interval:")
-        from: 60
-        to: 3600
-        stepSize: 60
-        editable: true
-        textFromValue: function (value, locale) {
-            return String(Math.round(value / 60)) + " minutes";
-        }
-        valueFromText: function (text, locale) {
-            var minutes = Number(text.replace(/[^0-9.]/g, ""));
-            return isNaN(minutes) ? 300 : Math.round(minutes * 60);
-        }
-    }
-
-    QQC2.CheckBox {
-        id: showUnsupported
-        Kirigami.FormData.label: i18n("Providers:")
-        text: i18n("Show unavailable providers")
-        checked: true
-    }
-
-    QQC2.CheckBox {
-        id: hideEmptyProviders
-        Kirigami.FormData.label: i18n("Providers:")
-        text: i18n("Hide providers with no usage yet in the panel")
-    }
-
-    QQC2.CheckBox {
-        id: showExhaustedReset
-        Kirigami.FormData.label: i18n("Display:")
-        text: i18n("Show the closest reset when a 5h/weekly window is exhausted")
-        checked: true
-    }
-
-    QQC2.ComboBox {
-        id: resetTextFormat
-        Kirigami.FormData.label: i18n("Popup reset text:")
-        // "long", matching the main.xml default.
-        currentIndex: 1
-        model: [
-            { value: "short", text: i18n("Short duration (30min)") },
-            { value: "long", text: i18n("Long date (14 Oct 12:25)") },
-            { value: "both", text: i18n("Both (30min 14 Oct 12:25)") }
-        ]
-        textRole: "text"
-        valueRole: "value"
-    }
-
-    ColumnLayout {
-        Kirigami.FormData.label: i18n("Show:")
-        spacing: 2
-
-        Repeater {
-            model: page.orderedKnownIds
-            delegate: RowLayout {
-                id: orderedProvider
-                required property var modelData
-                required property int index
-                spacing: 0
-
-                QQC2.CheckBox {
-                    text: page.providerName(orderedProvider.modelData)
-                    checked: !page.isHidden(orderedProvider.modelData)
-                    onToggled: page.setHidden(orderedProvider.modelData, !checked)
-                }
-
-                QQC2.ToolButton {
-                    icon.name: "arrow-up"
-                    enabled: orderedProvider.index > 0
-                    onClicked: page.moveProvider(orderedProvider.modelData, -1)
-                    Accessible.name: i18n("Move up")
-                }
-
-                QQC2.ToolButton {
-                    icon.name: "arrow-down"
-                    enabled: orderedProvider.index < page.orderedKnownIds.length - 1
-                    onClicked: page.moveProvider(orderedProvider.modelData, 1)
-                    Accessible.name: i18n("Move down")
-                }
+    Kirigami.FormLayout {
+        QQC2.SpinBox {
+            id: refreshInterval
+            Kirigami.FormData.label: i18n("Refresh interval:")
+            from: 60
+            to: 3600
+            stepSize: 60
+            editable: true
+            textFromValue: function (value, locale) {
+                return String(Math.round(value / 60)) + " minutes";
+            }
+            valueFromText: function (text, locale) {
+                var minutes = Number(text.replace(/[^0-9.]/g, ""));
+                return isNaN(minutes) ? 300 : Math.round(minutes * 60);
             }
         }
 
-        QQC2.Label {
-            visible: page.knownProviders.length === 0
-            text: i18n("Open the widget once so it can report which providers are available.")
-            color: Kirigami.Theme.disabledTextColor
-            wrapMode: Text.WordWrap
-            Layout.maximumWidth: 400
+        QQC2.CheckBox {
+            id: showUnsupported
+            Kirigami.FormData.label: i18n("Providers:")
+            text: i18n("Show unavailable providers")
+            checked: true
         }
-    }
 
-    QQC2.TextField {
-        id: codexbarPath
-        Kirigami.FormData.label: i18n("CodexBar CLI:")
-        Layout.minimumWidth: 320
-        placeholderText: i18n("Leave empty to find codexbar on PATH")
-    }
+        QQC2.CheckBox {
+            id: hideEmptyProviders
+            Kirigami.FormData.label: i18n("Providers:")
+            text: i18n("Hide providers with no usage yet in the panel")
+        }
 
-    QQC2.Label {
-        Layout.fillWidth: true
-        Layout.maximumWidth: 520
-        Kirigami.FormData.label: i18n("Data sources:")
-        text: i18n("The widget reads local, credential-free JSON snapshots or commands configured in ~/.config/limit-widget. It never stores provider tokens in Plasma settings.")
-        wrapMode: Text.WordWrap
-        color: Kirigami.Theme.disabledTextColor
+        QQC2.CheckBox {
+            id: showExhaustedReset
+            Kirigami.FormData.label: i18n("Display:")
+            text: i18n("Show the closest reset when a 5h/weekly window is exhausted")
+            checked: true
+        }
+
+        QQC2.ComboBox {
+            id: resetTextFormat
+            Kirigami.FormData.label: i18n("Popup reset text:")
+            // "long", matching the main.xml default.
+            currentIndex: 1
+            model: [
+                { value: "short", text: i18n("Short duration (30min)") },
+                { value: "long", text: i18n("Long date (14 Oct 12:25)") },
+                { value: "both", text: i18n("Both (30min 14 Oct 12:25)") }
+            ]
+            textRole: "text"
+            valueRole: "value"
+        }
+
+        ColumnLayout {
+            Kirigami.FormData.label: i18n("Show:")
+            spacing: 2
+
+            Repeater {
+                model: page.orderedKnownIds
+                delegate: RowLayout {
+                    id: orderedProvider
+                    required property var modelData
+                    required property int index
+                    spacing: 0
+
+                    QQC2.CheckBox {
+                        text: page.providerName(orderedProvider.modelData)
+                        checked: !page.isHidden(orderedProvider.modelData)
+                        onToggled: page.setHidden(orderedProvider.modelData, !checked)
+                    }
+
+                    QQC2.ToolButton {
+                        icon.name: "arrow-up"
+                        enabled: orderedProvider.index > 0
+                        onClicked: page.moveProvider(orderedProvider.modelData, -1)
+                        Accessible.name: i18n("Move up")
+                    }
+
+                    QQC2.ToolButton {
+                        icon.name: "arrow-down"
+                        enabled: orderedProvider.index < page.orderedKnownIds.length - 1
+                        onClicked: page.moveProvider(orderedProvider.modelData, 1)
+                        Accessible.name: i18n("Move down")
+                    }
+                }
+            }
+
+            QQC2.Label {
+                visible: page.knownProviders.length === 0
+                text: i18n("Open the widget once so it can report which providers are available.")
+                color: Kirigami.Theme.disabledTextColor
+                wrapMode: Text.WordWrap
+                Layout.maximumWidth: 400
+            }
+        }
+
+        QQC2.TextField {
+            id: codexbarPath
+            Kirigami.FormData.label: i18n("CodexBar CLI:")
+            Layout.minimumWidth: 320
+            placeholderText: i18n("Leave empty to find codexbar on PATH")
+        }
+
+        QQC2.Label {
+            Layout.fillWidth: true
+            Layout.maximumWidth: 520
+            Kirigami.FormData.label: i18n("Data sources:")
+            text: i18n("The widget reads local, credential-free JSON snapshots or commands configured in ~/.config/limit-widget. It never stores provider tokens in Plasma settings.")
+            wrapMode: Text.WordWrap
+            color: Kirigami.Theme.disabledTextColor
+        }
     }
 }

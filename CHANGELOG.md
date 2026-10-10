@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed: the settings page's first option sat flush against the top edge.
+  The page root is a KCM.SimpleKCM now, the same as the settings pages of
+  Plasma's own widgets, which brings the standard margins — and scrolling,
+  should the page ever outgrow the dialog.
 - Fixed: the popup's Refresh button no longer matched the provider rows'
   Usage buttons. Its 28×28 size was set through width and height, which a
   RowLayout ignores — its children size through the attached Layout
