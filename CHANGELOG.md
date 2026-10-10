@@ -9,7 +9,9 @@
   (an unlimited plan, whose usage cannot be measured) keeps its provider
   visible, as do transient error rows. The panel also shrinks to fit what it
   still shows instead of stretching the remaining rows across the space the
-  hidden ones used to take.
+  hidden ones used to take. The widget's width now mirrors the drawn content
+  exactly, so its edges are equidistant from the first and last element
+  rather than leaving a wider gap on the right.
 - Fixed: the settings dialog came up empty, or kept whatever page was shown
   before, instead of the widget's own settings. The General category's source
   in `config.qml` is resolved against `contents/ui`, so the
