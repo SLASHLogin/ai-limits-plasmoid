@@ -366,12 +366,65 @@ def codex_auth_path() -> Path:
     return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "auth.json"
 
 
+def codex_proxy_auth_paths() -> list[Path]:
+    """Codex logins kept by CLIProxyAPI, as a fallback for a stale Codex file.
+
+    CLIProxyAPI's auth dir defaults to ~/.cli-proxy-api; the EasyCLIProxyAPI
+    build keeps it under the user's data directory. Its files carry the token
+    fields at the top level, the layout codex_tokens() already accepts.
+    """
+    data_home = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+    directories = (
+        Path.home() / ".cli-proxy-api",
+        data_home / "EasyCLIProxyAPI" / "oauth",
+    )
+    paths: list[Path] = []
+    for directory in directories:
+        try:
+            candidates = sorted(directory.glob("codex-*.json"))
+        except OSError:
+            continue
+        for candidate in candidates:
+            if candidate.is_file() and candidate not in paths:
+                paths.append(candidate)
+    return paths
+
+
+def codex_auth_paths() -> list[Path]:
+    """Every local Codex login, the most recently written one first.
+
+    CLIProxyAPI may keep the same login in its own auth dir, either as a
+    hardlink to ~/.codex/auth.json or as a separate copy. When it is separate,
+    a refresh on the proxy side leaves the CLI's file holding a refresh token
+    that has already been rotated. The newest file is the one whose token was
+    rotated last, so reading it first avoids replaying a dead refresh token;
+    the remaining copies are still tried in case the newest record is unusable.
+    When the files are hardlinked their timestamps match and the CLI's own path
+    stays first.
+    """
+    paths: list[Path] = []
+    primary = codex_auth_path()
+    if primary.is_file():
+        paths.append(primary)
+    for candidate in codex_proxy_auth_paths():
+        if candidate not in paths:
+            paths.append(candidate)
+
+    def written(path: Path) -> float:
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return 0.0
+
+    return sorted(paths, key=written, reverse=True)
+
+
 def write_json_in_place(path: Path, payload: Any) -> None:
     """Rewrite an existing file without replacing its inode.
 
-    ~/.codex/auth.json is a hardlink to CLIProxyAPI's copy, and a write through a
-    temporary file and rename would leave CLIProxyAPI holding the old token. The
-    existing file's mode is kept, so a file narrowed to 0600 stays that way.
+    ~/.codex/auth.json may be a hardlink to CLIProxyAPI's copy; a write through
+    a temporary file and rename would leave the proxy holding the old token.
+    The existing file's mode is kept, so a file narrowed to 0600 stays that way.
     """
     data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     with os.fdopen(os.open(path, os.O_WRONLY), "wb") as stream:
@@ -390,7 +443,7 @@ def codex_tokens(auth: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def refresh_codex_token(auth: dict[str, Any], refresh_token: str) -> str | None:
+def refresh_codex_token(auth: dict[str, Any], refresh_token: str, auth_path: Path) -> str | None:
     body = urlencode({
         "grant_type": "refresh_token",
         "client_id": CODEX_CLIENT_ID,
@@ -416,7 +469,7 @@ def refresh_codex_token(auth: dict[str, Any], refresh_token: str) -> str | None:
         if isinstance(payload.get(key), str) and payload[key]:
             tokens[key] = payload[key]
     try:
-        write_json_in_place(codex_auth_path(), auth)
+        write_json_in_place(auth_path, auth)
     except OSError:
         pass
     return access_token
@@ -446,8 +499,7 @@ def codex_window(raw: Any, slot: str, default_label: str, headers: dict[str, str
     return normalize_window(item, slot, default_label)
 
 
-def codex_source() -> dict[str, Any]:
-    auth_path = codex_auth_path()
+def codex_source_at(auth_path: Path) -> dict[str, Any]:
     auth = load_json(auth_path)
     if not isinstance(auth, dict):
         return {"state": "unauthenticated", "detail": "Codex login not found"}
@@ -467,7 +519,7 @@ def codex_source() -> dict[str, Any]:
 
     payload, response_headers, status, error = http_json(CODEX_USAGE_URL, headers)
     if status in {401, 403} and isinstance(tokens.get("refresh_token"), str):
-        refreshed = refresh_codex_token(auth, tokens["refresh_token"])
+        refreshed = refresh_codex_token(auth, tokens["refresh_token"], auth_path)
         if refreshed:
             headers["Authorization"] = f"Bearer {refreshed}"
             payload, response_headers, status, error = http_json(CODEX_USAGE_URL, headers)
@@ -522,6 +574,20 @@ def codex_source() -> dict[str, Any]:
     if isinstance(credits, dict) and finite_number(credits.get("available_count")) is not None:
         detail = f"{detail} · {int(credits['available_count'])} reset credits"
     return {"state": "ok", "windows": windows, "detail": detail}
+
+
+def codex_source() -> dict[str, Any]:
+    """Try each local login, since a stale Codex file must not hide a live one."""
+    record: dict[str, Any] | None = None
+    for auth_path in codex_auth_paths():
+        record = codex_source_at(auth_path)
+        # A transient failure on the CLI's own login is still that login's
+        # answer; only a signed-out/expired record justifies another account.
+        if record["state"] != "unauthenticated":
+            return record
+    if record is not None:
+        return record
+    return {"state": "unauthenticated", "detail": "Codex login not found"}
 
 
 def copilot_source() -> dict[str, Any]:

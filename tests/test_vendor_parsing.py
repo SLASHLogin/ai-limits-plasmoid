@@ -46,6 +46,8 @@ class VendorParsingTest(unittest.TestCase):
         # configuration; tests must not depend on whatever providers.json
         # happens to sit on the machine running them.
         self.helper.mistral_cookie = lambda: None
+        # Likewise for CLIProxyAPI's OAuth store: each test opts in explicitly.
+        self.helper.codex_proxy_auth_paths = lambda: []
 
     def windows_by_label(self, record):
         return {w["label"]: w for w in record["windows"]}
@@ -129,6 +131,100 @@ class VendorParsingTest(unittest.TestCase):
         self.assertEqual(h.codex_source()["state"], "ok")
         self.assertEqual(json.loads(cliproxy.read_text(encoding="utf-8"))["access_token"], "new-token")
         self.assertEqual(os.stat(link).st_ino, os.stat(cliproxy).st_ino)
+
+    def test_stale_codex_login_falls_back_to_proxy_store(self):
+        """A rotated refresh token in ~/.codex must not hide the proxy's live one."""
+        h = self.helper
+        temp = Path(self.enterContext_tmp())
+        stale = temp / "auth.json"
+        stale.write_text(json.dumps({
+            "access_token": "stale-token",
+            "refresh_token": "reused-token",
+            "account_id": "acct",
+        }), encoding="utf-8")
+        proxy = temp / "codex-user-plus.json"
+        proxy.write_text(json.dumps({
+            "access_token": "live-token",
+            "refresh_token": "live-refresh",
+            "account_id": "acct",
+            "type": "codex",
+        }), encoding="utf-8")
+        # Equal timestamps keep the CLI's file first, so the test exercises
+        # the fallback rather than the newest-file shortcut.
+        for path in (stale, proxy):
+            os.utime(path, (1_700_000_000, 1_700_000_000))
+        calls = []
+
+        def fake_request(url, headers, *a, **k):
+            calls.append((url, headers.get("Authorization")))
+            if url == h.CODEX_REFRESH_URL:
+                return {"error": {"code": "refresh_token_reused"}}, {}, 401, None
+            if headers.get("Authorization") == "Bearer stale-token":
+                return None, {}, 401, None
+            return fixture("codex-usage.json"), {}, 200, None
+
+        h.http_json = fake_request
+        h.codex_auth_path = lambda: stale
+        h.codex_proxy_auth_paths = lambda: [proxy]
+
+        record = h.codex_source()
+        self.assertEqual(record["state"], "ok")
+        self.assertIn((h.CODEX_USAGE_URL, "Bearer live-token"), calls)
+
+    def test_newest_codex_login_is_tried_before_the_stale_one(self):
+        """The proxy's freshly rotated token must not be replayed after it is dead."""
+        h = self.helper
+        temp = Path(self.enterContext_tmp())
+        stale = temp / "auth.json"
+        stale.write_text(json.dumps({
+            "access_token": "stale-token",
+            "refresh_token": "reused-token",
+            "account_id": "acct",
+        }), encoding="utf-8")
+        proxy = temp / "codex-user-plus.json"
+        proxy.write_text(json.dumps({
+            "access_token": "live-token",
+            "refresh_token": "live-refresh",
+            "account_id": "acct",
+            "type": "codex",
+        }), encoding="utf-8")
+        os.utime(stale, (1_700_000_000, 1_700_000_000))
+        os.utime(proxy, (1_700_000_001, 1_700_000_001))
+        calls = []
+
+        def fake_request(url, headers, *a, **k):
+            calls.append(headers.get("Authorization"))
+            return fixture("codex-usage.json"), {}, 200, None
+
+        h.http_json = fake_request
+        h.codex_auth_path = lambda: stale
+        h.codex_proxy_auth_paths = lambda: [proxy]
+
+        self.assertEqual(h.codex_source()["state"], "ok")
+        self.assertEqual(calls, ["Bearer live-token"])
+
+    def test_refresh_writes_back_to_the_proxy_file_it_read(self):
+        """Refreshing a proxy login must not write a stray ~/.codex/auth.json."""
+        h = self.helper
+        temp = Path(self.enterContext_tmp())
+        proxy = temp / "codex-user-plus.json"
+        proxy.write_text(json.dumps({
+            "access_token": "old-token",
+            "refresh_token": "refresh",
+            "account_id": "acct",
+            "type": "codex",
+        }), encoding="utf-8")
+        responses = [
+            (None, {}, 401, None),
+            ({"access_token": "new-token"}, {}, 200, None),
+            (fixture("codex-usage.json"), {}, 200, None),
+        ]
+        h.http_json = lambda *a, **k: responses.pop(0)
+        h.codex_auth_path = lambda: temp / "missing-auth.json"
+        h.codex_proxy_auth_paths = lambda: [proxy]
+
+        self.assertEqual(h.codex_source()["state"], "ok")
+        self.assertEqual(json.loads(proxy.read_text(encoding="utf-8"))["access_token"], "new-token")
 
     def _codex_auth(self, flat=False):
         path = Path(self.enterContext_tmp()) / "auth.json"

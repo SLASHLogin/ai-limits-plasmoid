@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.1
+
+- Fixed: a Codex login whose refresh token CLIProxyAPI had already rotated
+  was reported as expired even when CLIProxyAPI still held a live token. The
+  collector now tries the OAuth copies in `~/.cli-proxy-api` and
+  EasyCLIProxyAPI's `oauth` directory too, and refreshes the copy it read.
+
 ## 1.4.0
 
 - New: the popup's header and the settings page's General entry carry

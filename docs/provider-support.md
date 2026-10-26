@@ -7,7 +7,7 @@ five-hour window plus a seven-day window where available.
 
 | Provider | Automatic source | Values shown | Caveat |
 | --- | --- | --- | --- |
-| ChatGPT | `~/.codex/auth.json` / `$CODEX_HOME`, then `GET https://chatgpt.com/backend-api/wham/usage` | 5h, 7d, and Codex Spark windows when returned | This is a Codex client endpoint, not a stable public third-party API. |
+| ChatGPT | `~/.codex/auth.json` / `$CODEX_HOME`, then CLIProxyAPI's `codex-*.json` OAuth copies, then `GET https://chatgpt.com/backend-api/wham/usage` | 5h, 7d, and Codex Spark windows when returned | This is a Codex client endpoint, not a stable public third-party API. |
 | Claude Code | `~/.claude/.credentials.json` (or `$CLAUDE_CONFIG_DIR`), then `GET https://api.anthropic.com/api/oauth/usage` | 5h and 7d percentage remaining, plus per-model weekly windows and reset times | This is the endpoint behind Claude Code's own `/usage`, not a documented public API. Falls back to the status-line cache, labelled stale. |
 | GitHub Copilot | `gh api copilot_internal/user`, using GitHub CLI's credential store | Premium-interaction remaining / entitlement and monthly reset | `copilot_internal/user` is used by current clients but is not documented as a public REST endpoint. |
 | Mistral Vibe | Opt-in Cookie header in `providers.json`, then `GET https://admin.mistral.ai/subscription`, with the console's `billing.vibeUsage` route as fallback | Both monthly allowances a plan includes — API and Vibe Code — remaining / budget in EUR | The allowances answer a browser session only; the pasted cookie expires. |

@@ -60,7 +60,9 @@ plugin, so it can also be placed on the desktop.
 After installation, the helper automatically tries:
 
 - **ChatGPT:** the ChatGPT OAuth login in `~/.codex/auth.json` (or
-  `$CODEX_HOME`). Sign in with the Codex CLI using your ChatGPT account.
+  `$CODEX_HOME`). Sign in with the Codex CLI using your ChatGPT account. If
+  CLIProxyAPI owns the login, its OAuth copy is used when the Codex file's
+  refresh token has already been rotated.
 - **GitHub Copilot:** `gh api copilot_internal/user`, reusing GitHub CLI's
   keychain-backed login. Run `gh auth login` if needed. This is the endpoint
   used by current Copilot clients, but GitHub does not document it as a public
