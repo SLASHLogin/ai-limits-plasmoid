@@ -207,11 +207,12 @@ from 1–60 minutes. Press **Refresh** in the popup for an immediate update.
 
 The settings page also lists every provider the widget has seen, so you can
 switch off the ones you do not use, and takes an explicit path to the CodexBar
-CLI if yours is not on `PATH`. Two more toggles live there: hiding providers
-that have no usage yet (no sign-in, or a plan without an allowance), and
-showing the closest reset time when a rolling 5h/weekly window runs out —
-monthly allowances such as Mistral's and Copilot's are excluded, since their
-rows already carry their reset time.
+CLI if yours is not on `PATH`. Three more toggles live there: showing usage as
+used instead of remaining, hiding providers that have no usage yet (no
+sign-in, or a plan without an allowance), and showing the closest reset time
+when a rolling 5h/weekly window runs out — monthly allowances such as
+Mistral's and Copilot's are excluded, since their rows already carry their
+reset time.
 
 ## Provider limitations
 

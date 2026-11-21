@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.0
+
+- New: a "Show usage as used instead of remaining" setting. It applies to the
+  panel, tooltip, and popup text and bars. With two limits the panel shows the
+  most consumed one, and an unlimited plan reads `—` because its consumption
+  is unknown.
+- Fixed: the tooltip and the available count still included providers that
+  were switched off or hidden by "Show unavailable providers".
+- Fixed: "Show unavailable providers" now applies to the panel too. Providers
+  with a failed read stay visible there.
+
 ## 1.4.1
 
 - Fixed: a Codex login whose refresh token CLIProxyAPI had already rotated
