@@ -8,6 +8,8 @@
   is unknown.
 - Fixed: the tooltip and the available count still included providers that
   were switched off or hidden by "Show unavailable providers".
+- Fixed: "Show unavailable providers" now applies to the panel too. Providers
+  with a failed read stay visible there.
 
 ## 1.4.1
 

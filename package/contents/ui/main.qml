@@ -155,6 +155,10 @@ PlasmoidItem {
         if (!root.providerVisible(provider) || String(provider.id || "").indexOf("codexbar:") === 0) {
             return false;
         }
+        // A failed read is a started provider, so it stays in the panel.
+        if (!root.showUnsupported && ["ok", "stale", "error", "rateLimited"].indexOf(provider.state) === -1) {
+            return false;
+        }
         return !root.hideEmptyProviders || !root.providerIsEmpty(provider);
     })
     readonly property string statusLine: {
