@@ -15,6 +15,7 @@ KCM.SimpleKCM {
     property alias cfg_showUnsupported: showUnsupported.checked
     property alias cfg_hideEmptyProviders: hideEmptyProviders.checked
     property alias cfg_showExhaustedReset: showExhaustedReset.checked
+    property alias cfg_showUsed: showUsed.checked
     property alias cfg_resetTextFormat: resetTextFormat.currentValue
     // Not aliases: the checkbox list and the order buttons write these as
     // comma-separated strings.
@@ -134,8 +135,13 @@ KCM.SimpleKCM {
         }
 
         QQC2.CheckBox {
-            id: showExhaustedReset
+            id: showUsed
             Kirigami.FormData.label: i18n("Display:")
+            text: i18n("Show usage as used instead of remaining")
+        }
+
+        QQC2.CheckBox {
+            id: showExhaustedReset
             text: i18n("Show the closest reset when a 5h/weekly window is exhausted")
             checked: true
         }

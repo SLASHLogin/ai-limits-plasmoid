@@ -18,6 +18,11 @@
         <entry name="hideEmptyProviders" type="Bool">
             <default>false</default>
         </entry>
+        <!-- Show what was consumed instead of what is left, in the panel,
+             tooltip and popup alike. -->
+        <entry name="showUsed" type="Bool">
+            <default>false</default>
+        </entry>
         <!-- Show the closest upcoming reset when a rolling session/weekly
              window is exhausted. Monthly allowances are excluded. -->
         <entry name="showExhaustedReset" type="Bool">

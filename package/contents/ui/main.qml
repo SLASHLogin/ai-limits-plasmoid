@@ -28,6 +28,9 @@ PlasmoidItem {
     readonly property bool showUnsupported: Plasmoid.configuration.showUnsupported !== false
     readonly property bool hideEmptyProviders: Plasmoid.configuration.hideEmptyProviders === true
     readonly property bool showExhaustedReset: Plasmoid.configuration.showExhaustedReset !== false
+    // Show what was consumed instead of what is left, in the panel, tooltip
+    // and popup alike, so one provider never reads two ways at once.
+    readonly property bool showUsed: Plasmoid.configuration.showUsed === true
     // What the popup's reset hint contains: the short duration until the
     // reset, the absolute date, or both. Anything unknown falls back to the
     // absolute date, which is what the hint has always shown.
@@ -110,7 +113,8 @@ PlasmoidItem {
         if (provider.state === "error" || provider.state === "rateLimited") {
             return false;
         }
-        if (root.compactValue(provider) === "—") {
+        // An unlimited plan reads "—" in used mode, but it is not empty.
+        if (root.compactValue(provider) === "—" && !root.isUnlimited(provider)) {
             return true;
         }
         // Every reported window untouched means no usage this period. A window
@@ -175,7 +179,7 @@ PlasmoidItem {
         var value = root.compactValue(provider);
         // The panel itself has no room for a word, so spell the direction out
         // wherever there is: an unlabelled "99%" reads as consumption.
-        var body = value === "—" ? value : value + " " + i18n("left");
+        var body = value === "—" ? value : value + " " + (root.showUsed ? i18n("used") : i18n("left"));
         return provider.name + ": " + body;
     }).join("  ·  ")
     // The width of what the panel actually draws — panelProviders, not every
@@ -260,6 +264,18 @@ PlasmoidItem {
         return Math.max(0, Math.min(100, item.remaining / item.limit * 100));
     }
 
+    // A remaining share as the panel words it. The caller picks the tightest
+    // window from remaining values first, so in used mode the panel still
+    // names the window closest to its limit: the most consumed one.
+    function percentText(remaining) {
+        return String(Math.round(root.showUsed ? 100 - remaining : remaining)) + "%";
+    }
+
+    function isUnlimited(provider) {
+        return !!provider && typeof provider.detail === "string"
+            && provider.detail.toLowerCase().indexOf("unlimited") !== -1;
+    }
+
     function compactValue(provider) {
         var entries = [];
         if (provider && provider.windows && typeof provider.windows.length === "number") {
@@ -288,7 +304,7 @@ PlasmoidItem {
                 }
             }
             if (weekly.length > 0) {
-                return String(Math.round(entries[0].percent)) + "%/" + String(Math.round(Math.min.apply(null, weekly))) + "%";
+                return root.percentText(entries[0].percent) + "/" + root.percentText(Math.min.apply(null, weekly));
             }
             // With no weekly window, a second window is a separate budget of
             // the same length — Mistral's Vibe Code allowance next to its API
@@ -296,12 +312,14 @@ PlasmoidItem {
             // rather than only the tighter one.
             if (entries.length > 1) {
                 var rest = entries.slice(1).map(function (entry) { return entry.percent; });
-                return String(Math.round(entries[0].percent)) + "%/" + String(Math.round(Math.min.apply(null, rest))) + "%";
+                return root.percentText(entries[0].percent) + "/" + root.percentText(Math.min.apply(null, rest));
             }
-            return String(Math.round(entries[0].percent)) + "%";
+            return root.percentText(entries[0].percent);
         }
-        if (provider && typeof provider.detail === "string" && provider.detail.toLowerCase().indexOf("unlimited") !== -1) {
-            return "100%";
+        if (root.isUnlimited(provider)) {
+            // Consumption of an unlimited plan is unknown, and an unknown
+            // value stays "—" rather than reading as 0% or 100% used.
+            return root.showUsed ? "—" : "100%";
         }
         return "—";
     }
@@ -671,6 +689,7 @@ PlasmoidItem {
                             required property var modelData
                             provider: modelData
                             resetHint: root.exhaustedReset(modelData)
+                            showUsed: root.showUsed
                         }
                     }
 

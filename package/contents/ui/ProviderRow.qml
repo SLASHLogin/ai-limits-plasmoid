@@ -15,6 +15,8 @@ Item {
     // Set by the applet when an exhausted session/weekly window should name
     // its closest reset, e.g. "R 5H 14:30". Empty means no hint.
     property string resetHint: ""
+    // Show consumption instead of the allowance left.
+    property bool showUsed: false
 
     readonly property var windows: provider && provider.windows && typeof provider.windows.length === "number"
         ? provider.windows
@@ -24,7 +26,7 @@ Item {
         && typeof provider.limit === "number"
         && provider.limit > 0
     readonly property real ratio: hasValue
-        ? Math.max(0, Math.min(1, provider.remaining / provider.limit))
+        ? row.fillRatio(provider)
         : 0
     // One fill ratio per window, so a multi-window provider gets a gauge per
     // window instead of a single bar that only describes the first one.
@@ -33,7 +35,7 @@ Item {
         for (var index = 0; index < row.windows.length; index++) {
             var item = row.windows[index];
             if (typeof item.remaining === "number" && typeof item.limit === "number" && item.limit > 0) {
-                list.push(Math.max(0, Math.min(1, item.remaining / item.limit)));
+                list.push(row.fillRatio(item));
             }
         }
         if (list.length === 0 && row.hasValue) {
@@ -46,7 +48,30 @@ Item {
     Layout.fillWidth: true
     Layout.minimumHeight: implicitHeight
 
-    // Every value in the widget means allowance left, never consumption.
+    // The share a gauge fills: what is left, or in used mode what was consumed.
+    function fillRatio(item) {
+        var left = Math.max(0, Math.min(1, item.remaining / item.limit));
+        if (!row.showUsed) {
+            return left;
+        }
+        return typeof item.usedPercentage === "number"
+            ? Math.max(0, Math.min(1, item.usedPercentage / 100))
+            : 1 - left;
+    }
+
+    // Consumption in the window's own unit. Claude and Codex report it
+    // directly; a counted quota derives it from what is left. Without both
+    // numbers it stays unknown rather than becoming zero.
+    function usedValue(item) {
+        if (row.isPercentWindow(item) && typeof item.usedPercentage === "number") {
+            return Math.max(0, Math.min(100, item.usedPercentage));
+        }
+        if (typeof item.remaining !== "number" || typeof item.limit !== "number") {
+            return null;
+        }
+        return Math.max(0, Math.min(item.limit, item.limit - item.remaining));
+    }
+
     function formatValue(value) {
         if (typeof value !== "number") {
             return "—";
@@ -69,9 +94,10 @@ Item {
     }
 
     function windowValue(item) {
+        var value = row.showUsed ? row.usedValue(item) : item.remaining;
         return row.isPercentWindow(item)
-            ? row.formatValue(item.remaining) + "%"
-            : row.formatValue(item.remaining) + " / " + row.formatValue(item.limit);
+            ? row.formatValue(value) + "%"
+            : row.formatValue(value) + " / " + row.formatValue(item.limit);
     }
 
     // The rolling-period windows arrive labelled "5h" and "7d"; the popup
@@ -159,7 +185,7 @@ Item {
                     var body = row.windows.length > 1
                         ? row.windowSummary()
                         : row.windowValue(row.windows.length === 1 ? row.windows[0] : row.provider);
-                    return row.resetHint ? body + " · " + row.resetHint : body + " " + i18n("left");
+                    return row.resetHint ? body + " · " + row.resetHint : body + " " + (row.showUsed ? i18n("used") : i18n("left"));
                 }
                 font.bold: true
                 // One size for every row, so a provider with several windows
@@ -190,7 +216,7 @@ Item {
                     // Alpha lives in the colours, not in `opacity`: Qt folds a
                     // parent's opacity into its children, which would dim the
                     // fill by the track's factor and flatten the two together.
-                    // The empty part is the consumed share, so it stays legible.
+                    // The empty part is the other share, so it stays legible.
                     color: Qt.rgba(Kirigami.Theme.textColor.r,
                                    Kirigami.Theme.textColor.g,
                                    Kirigami.Theme.textColor.b,
@@ -210,7 +236,7 @@ Item {
             visible: !row.compact
             Layout.fillWidth: true
             text: row.resetSummary() || (row.hasValue
-                ? (row.provider.detail || qsTr("Remaining"))
+                ? (row.provider.detail || (row.showUsed ? qsTr("Used") : qsTr("Remaining")))
                 : (row.provider.detail || qsTr("No official remaining-limit data")))
             color: Kirigami.Theme.disabledTextColor
             font.pixelSize: 10
