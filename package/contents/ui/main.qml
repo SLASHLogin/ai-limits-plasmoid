@@ -158,7 +158,7 @@ PlasmoidItem {
         return !root.hideEmptyProviders || !root.providerIsEmpty(provider);
     })
     readonly property string statusLine: {
-        var known = providers.filter(function (provider) {
+        var known = displayedProviders.filter(function (provider) {
             return typeof provider.remaining === "number" && typeof provider.limit === "number";
         }).length;
         if (root.loading) {
@@ -167,9 +167,9 @@ PlasmoidItem {
         if (root.errorText) {
             return root.errorText;
         }
-        return String(known) + " / " + String(providers.length) + " available";
+        return String(known) + " / " + String(displayedProviders.length) + " available";
     }
-    readonly property string compactSummary: orderedProviders.map(function (provider) {
+    readonly property string compactSummary: displayedProviders.map(function (provider) {
         // As in the panel: an exhausted window makes the percentages
         // unusable, so the tooltip shows the time until the reset alone.
         var reset = root.panelReset(provider);
@@ -218,7 +218,7 @@ PlasmoidItem {
     // compact panel representation below intentionally does not render it.
     Plasmoid.icon: "view-statistics"
     toolTipMainText: i18n("AI limits")
-    toolTipSubText: root.compactSummary + " — " + root.statusLine
+    toolTipSubText: root.compactSummary ? root.compactSummary + " — " + root.statusLine : root.statusLine
     Plasmoid.status: root.loading ? PlasmaCore.Types.ActiveStatus : PlasmaCore.Types.PassiveStatus
 
     function defaultProvider(id, name, shortName, symbol, url) {

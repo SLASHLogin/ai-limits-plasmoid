@@ -6,6 +6,8 @@
   panel, tooltip, and popup text and bars. With two limits the panel shows the
   most consumed one, and an unlimited plan reads `—` because its consumption
   is unknown.
+- Fixed: the tooltip and the available count still included providers that
+  were switched off or hidden by "Show unavailable providers".
 
 ## 1.4.1
 
